@@ -1,0 +1,12 @@
+{
+  "tasks": {
+    "workers": "PGUSER=postgres PGPASSWORD=nBC3E8aFpaEXa2Y PGHOST=db.zcgryhyszzcijmwkccnv.supabase.co PGPORT=6543 PGDATABASE=postgres deno run -A workers/main.ts",
+    "api": "PGUSER=postgres PGPASSWORD=nBC3E8aFpaEXa2Y PGHOST=db.zcgryhyszzcijmwkccnv.supabase.co PGPORT=6543 PGDATABASE=postgres deno run -A api/main.ts"
+  },
+  "fmt": {
+    "files": {
+      "exclude": ["README.md", "LICENSE"]
+    }
+  },
+  "importMap": "./import_map.json"
+}
