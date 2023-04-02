@@ -55,11 +55,7 @@
     "https://deno.land/std@0.160.0/testing/_diff.ts": "a23e7fc2b4d8daa3e158fa06856bedf5334ce2a2831e8bf9e509717f455adb2c",
     "https://deno.land/std@0.160.0/testing/_format.ts": "cd11136e1797791045e639e9f0f4640d5b4166148796cad37e6ef75f7d7f3832",
     "https://deno.land/std@0.160.0/testing/asserts.ts": "1e340c589853e82e0807629ba31a43c84ebdcdeca910c4a9705715dfdb0f5ce8",
-    "https://deno.land/std@0.162.0/datetime/formatter.ts": "7c8e6d16a0950f400aef41b9f1eb9168249869776ec520265dfda785d746589e",
-    "https://deno.land/std@0.162.0/datetime/mod.ts": "ea927ca96dfb28c7b9a5eed5bdc7ac46bb9db38038c4922631895cea342fea87",
-    "https://deno.land/std@0.162.0/datetime/tokenizer.ts": "7381e28f6ab51cb504c7e132be31773d73ef2f3e1e50a812736962b9df1e8c47",
     "https://deno.land/std@0.164.0/async/deferred.ts": "d8fb253ffde2a056e4889ef7e90f3928f28be9f9294b6505773d33f136aab4e6",
-    "https://deno.land/std@0.170.0/async/deferred.ts": "77d3f84255c3627f1cc88699d8472b664d7635990d5358c4351623e098e917d6",
     "https://deno.land/std@0.173.0/async/abortable.ts": "73acfb3ed7261ce0d930dbe89e43db8d34e017b063cf0eaa7d215477bf53442e",
     "https://deno.land/std@0.173.0/async/deadline.ts": "b98e50d2c42399af03ad13bbb8cf59dadb9f0cd5d70648cc0c3b9202d75ab565",
     "https://deno.land/std@0.173.0/async/debounce.ts": "adab11d04ca38d699444ac8a9d9856b4155e8dda2afd07ce78276c01ea5a4332",
@@ -111,9 +107,6 @@
     "https://deno.land/x/postgres@v0.17.0/utils/deferred.ts": "dd94f2a57355355c47812b061a51b55263f72d24e9cb3fdb474c7519f4d61083",
     "https://deno.land/x/postgres@v0.17.0/utils/utils.ts": "19c3527ddd5c6c4c49ae36397120274c7f41f9d3cbf479cb36065d23329e9f90",
     "https://deno.land/x/rutt@0.0.14/mod.ts": "5027b8e8b12acca48b396a25aee74ad7ee94a25c24cda75571d7839cbd41113c",
-    "https://deno.land/x/semaphore@v1.1.1/mod.ts": "431abb51927a16c537cec1cfb05bf2de6a8f3916331f1ec3f9f13ad7ad6a4ea5",
-    "https://deno.land/x/semaphore@v1.1.1/mutex.ts": "2cc6490481f0fdfe97c6b326a2073819d76b76eac3877864a8ada6a2127492f2",
-    "https://deno.land/x/semaphore@v1.1.1/semaphore.ts": "0acf1159d635fa3b9198a4ad4acac9e877d79196601aa80544ac0db5a71c646d",
     "https://deno.land/x/yocto_queue@v0.1.3/mod.ts": "f63406731f43af2038c2a9158446d020d7a6f203ba5e1d9a6c18b1247ee0fb63",
     "https://jspm.dev/npm:seedrandom@3.0.5!cjs": "b726cc1a41e99691c25d6af1711b75353494b59e7d530d8e93c1b40a002ce9a1",
     "https://jspm.dev/npm:seedrandom@3.0.5/lib/alea!cjs": "a5f648ecf27278fa971c3a5c9c97de3451b91f814106b6dfa03d3fdff7ab62f5",
@@ -122,6 +115,15 @@
     "https://jspm.dev/seedrandom": "dce9ea596ca9b58319a2a159e24ccfae3d7400dd0b8b4d6aa896db98cc2d6896",
     "https://raw.githubusercontent.com/alextes/vegas/main/mod.ts": "122b3c826dc6c5de5d95389f397c5ff69fcd7a3dfca75cc010b41017b2245817",
     "https://raw.githubusercontent.com/alextes/vegas/main/seedrandom.d.ts": "a57cf3cedabf87b87d8fe36dd2e846dd4bdbb878caf6e3e9c7d4848b73267523",
-    "https://raw.githubusercontent.com/deco-sites/fashion/workflows/workflows/createOrder.ts": "73aa879dcbddedda11c005a41035e5857c888a80180a0a0859a7b04bdca1f713"
+    "https://raw.githubusercontent.com/deco-sites/fashion/workflows/workflows/createOrder.ts": "93e95567de64676626d48a1f7ab08d4f10e5459f0b51431757294163b4483e5a",
+    "https://raw.githubusercontent.com/mcandeia/deno-workflows/main/backends/backend.ts": "16fd8bf16398441ec27b7cff3438140b1f2dffcac017de413f5c9ae61df71b69",
+    "https://raw.githubusercontent.com/mcandeia/deno-workflows/main/context.ts": "e2a255ad815bf6ed6bb04f683a9d4e787fdbc11b0c9a26bbb22329f355af0614",
+    "https://raw.githubusercontent.com/mcandeia/deno-workflows/main/promise.ts": "d6a26b1e5d015177c37c471b1009f37ed257dcb11b312de6b0077a3f14fed18b",
+    "https://raw.githubusercontent.com/mcandeia/deno-workflows/main/runtime/core/commands.ts": "db6df7492b9eedd718656735280293a0199f4e229a19bb89224447e5410844f6",
+    "https://raw.githubusercontent.com/mcandeia/deno-workflows/main/runtime/core/events.ts": "fdc233903117c9ab485238730fbac10d1fb68f06446b1efad3ca7f9022fc9ba3",
+    "https://raw.githubusercontent.com/mcandeia/deno-workflows/main/runtime/core/state.ts": "d6219e709b5a2d9368d151b98f3a7e87a48d4eefa3fa2f569187f926dbcccec0",
+    "https://raw.githubusercontent.com/mcandeia/deno-workflows/main/runtime/core/workflow.ts": "16a2f082c7c73ffb6d8852f118508c5b6e6527e802ede0377ce2be89bd1b4285",
+    "https://raw.githubusercontent.com/mcandeia/deno-workflows/main/types.ts": "cc559900185387dafb842b4f21c8b0b6b566216d8837e842a709bc4e563aaea5",
+    "https://raw.githubusercontent.com/mcandeia/trusted-registries/main/registries.ts": "d5afe0b5443fc7691b510fef26673821d7271e3cb048bd0f86fed0ab6481dbb5"
   }
 }

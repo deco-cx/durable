@@ -10,6 +10,7 @@ import {
   WaitForSignalCommand,
 } from "./runtime/core/commands.ts";
 import { Arg } from "./types.ts";
+import { InvokeHttpEndpointCommand } from "./runtime/core/commands.ts";
 
 export type ActivityResult<T> = PromiseOrValue<T>;
 
@@ -77,6 +78,21 @@ export class WorkflowContext {
     activity: () => TResult,
   ): LocalActivityCommand<TResult> {
     return { name: "local_activity", result: activity() };
+  }
+
+  /**
+   * Executes the http request for the given context and args.
+   * @param url the fetch url
+   */
+  public fetch<TBody = unknown>(
+    url: string,
+    options?: {
+      body?: TBody;
+      headers?: Record<string, string>;
+      method?: string;
+    },
+  ): InvokeHttpEndpointCommand<TBody> {
+    return { name: "invoke_http_endpoint", url, ...options };
   }
 
   /**

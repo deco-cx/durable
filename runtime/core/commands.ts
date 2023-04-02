@@ -37,6 +37,18 @@ export interface SleepCommand extends CommandBase {
 }
 
 /**
+ * Invoke the given http endpoint
+ */
+export interface InvokeHttpEndpointCommand<TBody = unknown>
+  extends CommandBase {
+  name: "invoke_http_endpoint";
+  url: string;
+  method?: string;
+  headers?: Record<string, string>;
+  body?: TBody;
+  responseFormat?: "complete" | "body-only";
+}
+/**
  * ScheduleActivityCommand is used for scheduling long running tasks.
  */
 export interface ScheduleActivityCommand<
@@ -76,7 +88,8 @@ export type Command =
   | WaitForSignalCommand
   | FinishWorkflowCommand<any>
   | DelegatedCommand
-  | LocalActivityCommand<any>;
+  | LocalActivityCommand<any>
+  | InvokeHttpEndpointCommand<any>;
 
 const no_op = () => [];
 const local_activity = (
@@ -184,6 +197,30 @@ const delegated = async (
   return handleCommand(cmd, state);
 };
 
+const invoke_http_endpoint = async (
+  { headers, url, method, body }: InvokeHttpEndpointCommand,
+): Promise<HistoryEvent[]> => {
+  const resp = await fetch(url, {
+    headers,
+    method,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  const hd: Record<string, string> = {};
+
+  for (const [k, v] of resp.headers.entries()) {
+    hd[k] = v;
+  }
+
+  return [{
+    ...newEvent(),
+    type: "invoke_http_response",
+    body: await resp.json(), // FIXME(mcandeia) should we format other type of http formats?
+    status: resp.status,
+    headers: hd,
+  }];
+};
+
 const handleByCommand: Record<
   Command["name"],
   (c: any, state: WorkflowState<any, any>) => PromiseOrValue<HistoryEvent[]>
@@ -196,6 +233,7 @@ const handleByCommand: Record<
   delegated,
   local_activity,
   cancel_workflow,
+  invoke_http_endpoint,
 };
 
 export const handleCommand = async <TArgs extends Arg = Arg, TResult = unknown>(

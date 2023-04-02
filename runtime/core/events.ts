@@ -18,6 +18,17 @@ export interface Event {
 /**
  * WorkflowStartedEvent is the event that should start the workflow
  */
+export interface InvokeHttpResponseEvent<TBody = unknown> extends Event {
+  type: "invoke_http_response";
+  body?: TBody;
+  headers: Record<string, string>;
+  status: number;
+  responseFormat?: "complete" | "body-only";
+}
+
+/**
+ * WorkflowStartedEvent is the event that should start the workflow
+ */
 export interface WorkflowStartedEvent<TArgs extends Arg = Arg> extends Event {
   type: "workflow_started";
   input?: TArgs;
@@ -105,7 +116,8 @@ export type HistoryEvent =
   | TimerFiredEvent
   | WaitingSignalEvent
   | SignalReceivedEvent
-  | LocalActivityCalledEvent;
+  | LocalActivityCalledEvent
+  | InvokeHttpResponseEvent;
 
 export const newEvent = (): Omit<Event, "type"> => {
   return {
@@ -277,6 +289,30 @@ const local_activity_called = function <
   return { ...state, current: next(state.generatorFn!.next(result)) };
 };
 
+const invoke_http_response = function <
+  TArgs extends Arg = Arg,
+  TResult = unknown,
+>(
+  state: WorkflowState<TArgs, TResult>,
+  { body, headers, status, responseFormat }: InvokeHttpResponseEvent,
+): WorkflowState<TArgs, TResult> {
+  try {
+    const genResult = status >= 400
+      ? state.generatorFn!.throw({
+        message: "Error when fetching API",
+        response: { body, headers, status },
+      })
+      : state.generatorFn!.next(
+        responseFormat && responseFormat === "complete"
+          ? { body, headers, status }
+          : body,
+      );
+    return { ...state, current: next(genResult) };
+  } catch (err) {
+    return { ...state, exception: err, hasFinished: true };
+  }
+};
+
 // deno-lint-ignore no-explicit-any
 const handlers: Record<HistoryEvent["type"], EventHandler<any>> = {
   workflow_canceled,
@@ -289,6 +325,7 @@ const handlers: Record<HistoryEvent["type"], EventHandler<any>> = {
   waiting_signal,
   signal_received,
   local_activity_called,
+  invoke_http_response,
 };
 
 export function apply<TArgs extends Arg = Arg, TResult = unknown>(
