@@ -1,6 +1,6 @@
-import { Command } from "./commands.ts";
 import { WorkflowContext } from "../../context.ts";
 import { Arg } from "../../types.ts";
+import { Command } from "./commands.ts";
 
 /**
  * WorkflowGen is the generator function returned by a workflow function.
@@ -31,7 +31,11 @@ export const isNoArgFn = function <TArgs extends Arg = Arg, TResp = unknown>(
   return fn.length == 0;
 };
 
-export type Workflow<TArgs extends Arg = Arg, TResp = unknown> = (
-  ctx: WorkflowContext,
+export type Workflow<
+  TArgs extends Arg = Arg,
+  TResp = unknown,
+  TCtx extends WorkflowContext = WorkflowContext,
+> = (
+  ctx: TCtx,
   ...args: [...TArgs]
 ) => WorkflowGen<TResp>;

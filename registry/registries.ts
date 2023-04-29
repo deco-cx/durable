@@ -1,5 +1,6 @@
 // deno-lint-ignore-file no-explicit-any
 import { MINUTE } from "https://deno.land/std@0.160.0/datetime/mod.ts";
+import { WorkflowContext } from "../context.ts";
 import { Workflow } from "../mod.ts";
 import { PromiseOrValue } from "../promise.ts";
 import { runtimeBuilder } from "../runtime/builders.ts";
@@ -9,9 +10,13 @@ import { Arg } from "../types.ts";
 import { setIntervalFlight } from "../utils.ts";
 
 export interface WorkflowRegistry {
-  get<TArgs extends Arg = Arg, TResult = unknown>(
+  get<
+    TArgs extends Arg = Arg,
+    TResult = unknown,
+    TCtx extends WorkflowContext = WorkflowContext,
+  >(
     alias: string,
-  ): PromiseOrValue<Workflow<TArgs, TResult> | undefined>;
+  ): PromiseOrValue<Workflow<TArgs, TResult, TCtx> | undefined>;
 }
 export interface WorkflowRuntimeRefBase {
   type: string;
@@ -55,7 +60,7 @@ export interface InlineRegistry extends RegistryBase {
 
 export type Registry = GithubRegistry | HttpRegistry | InlineRegistry;
 
-export type GenericWorkflow = Workflow<any, any>;
+export type GenericWorkflow = Workflow<any, any, any>;
 const inline = ({ ref }: InlineRegistry) => {
   const runtimePromise = runtimeBuilder[ref.type](ref);
   return (_: string) => {

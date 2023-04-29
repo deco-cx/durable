@@ -15,13 +15,18 @@ export interface RunRequest<TArgs extends Arg = Arg> {
  * @param workflow the workflow function
  * @returns a http handler
  */
-export const workflowHTTPHandler = <TArgs extends Arg = Arg, TResult = unknown>(
-  workflow: Workflow<TArgs, TResult>,
+export const workflowHTTPHandler = <
+  TArgs extends Arg = Arg,
+  TResult = unknown,
+  TCtx extends WorkflowContext = WorkflowContext,
+>(
+  workflow: Workflow<TArgs, TResult, TCtx>,
+  Context: new (executionId: string) => TCtx,
 ): Handler => {
   return async function (req) {
     const { results: [input, ...results], executionId } = await req
       .json() as RunRequest<TArgs>;
-    const ctx = new WorkflowContext(executionId);
+    const ctx = new Context(executionId);
 
     const genFn = workflow(ctx, ...input);
     let cmd = genFn.next();
@@ -46,15 +51,15 @@ export interface CreateRouteOptions {
 
 export interface AliasedWorkflow {
   alias: string;
-  func: Workflow<any, any>;
+  func: Workflow<any, any, any>;
 }
 
 const isAlisedWorkflow = (
-  wkflow: AliasedWorkflow | Workflow<any, any>,
+  wkflow: AliasedWorkflow | Workflow<any, any, any>,
 ): wkflow is AliasedWorkflow => {
   return (wkflow as AliasedWorkflow).alias !== undefined;
 };
-export type Workflows = Array<Workflow<any, any> | AliasedWorkflow>;
+export type Workflows = Array<Workflow<any, any, any> | AliasedWorkflow>;
 
 export const useWorkflowRoutes = (
   { baseRoute }: CreateRouteOptions,
@@ -68,7 +73,7 @@ export const useWorkflowRoutes = (
     const route = `${baseRoute}${alias}`;
     routes = {
       ...routes,
-      [`POST@${route}`]: workflowHTTPHandler(func),
+      [`POST@${route}`]: workflowHTTPHandler(func, WorkflowContext),
     };
   }
   return router(routes);
