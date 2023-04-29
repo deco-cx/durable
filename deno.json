@@ -1,7 +1,8 @@
 {
   "tasks": {
-    "workers": "PGUSER=postgres PGPASSWORD=nBC3E8aFpaEXa2Y PGHOST=db.zcgryhyszzcijmwkccnv.supabase.co PGPORT=6543 PGDATABASE=postgres deno run -A workers/main.ts",
-    "api": "PGUSER=postgres PGPASSWORD=nBC3E8aFpaEXa2Y PGHOST=db.zcgryhyszzcijmwkccnv.supabase.co PGPORT=6543 PGDATABASE=postgres deno run -A api/main.ts"
+    "pgsql": "docker run --name myPostgresDb -p 5455:5432 -e POSTGRES_USER=postgresUser -e POSTGRES_PASSWORD=postgresPW -e POSTGRES_DB=postgresDB -d postgres",
+    "workers": "PGUSER=postgresUser PGPASSWORD=postgresPW PGHOST=localhost PGPORT=5455 PGDATABASE=postgresDB deno run -A workers/main.ts",
+    "api": "PGUSER=postgresUser PGPASSWORD=postgresPW PGHOST=localhost PGPORT=5455 PGDATABASE=postgresDB deno run -A api/main.ts"
   },
   "fmt": {
     "files": {
