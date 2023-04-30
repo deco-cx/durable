@@ -7,10 +7,10 @@ const service = new WorkflowService(postgres());
 await serve(
   router({
     "POST@/executions": async (req) => {
-      const { alias, input, metadata } = await req.json();
+      const { alias, input, metadata, id } = await req.json();
       return Response.json(
         await service.startExecution(
-          { alias, metadata },
+          { alias, executionId: id, metadata },
           Array.isArray(input) ? input : [input],
         ),
       );
