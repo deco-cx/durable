@@ -4,9 +4,9 @@ import { isoDate, valueOrNull } from "./utils.ts";
 const TABLE_EXECUTIONS = "executions";
 export const insertExecution = (
   executionId: string,
-  { alias, completedAt, output, input, status }: WorkflowExecution,
+  { alias, completedAt, output, input, status, metadata }: WorkflowExecution,
 ): string => {
-  return `INSERT INTO ${TABLE_EXECUTIONS} (id, alias, completed_at, output, input, status) VALUES('${executionId}', '${alias}', ${
+  return `INSERT INTO ${TABLE_EXECUTIONS} (id, alias, completed_at, output, input, status, metadata) VALUES('${executionId}', '${alias}', ${
     valueOrNull(
       completedAt === undefined ? undefined : isoDate(completedAt),
     )
@@ -14,7 +14,9 @@ export const insertExecution = (
     valueOrNull(output === undefined ? undefined : JSON.stringify(output))
   }, ${
     valueOrNull(input === undefined ? undefined : JSON.stringify(input))
-  }, '${status}')`;
+  }, '${status}',${
+    valueOrNull(metadata === undefined ? undefined : JSON.stringify(metadata))
+  })`;
 };
 
 export const updateExecution = (
@@ -37,7 +39,7 @@ export const updateExecution = (
 };
 
 export const getExecution = (executionId: string): string => {
-  return `SELECT id, alias, completed_at completedAt, output, input, status FROM ${TABLE_EXECUTIONS} WHERE id='${executionId}'`;
+  return `SELECT id, alias, completed_at completedAt, output, input, status, metadata FROM ${TABLE_EXECUTIONS} WHERE id='${executionId}'`;
 };
 
 export const unlockExecution = (executionId: string): string => {

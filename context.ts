@@ -46,7 +46,7 @@ export type ActivityExecutor<TArgs extends Arg, TResult> = (
  */
 export class WorkflowContext {
   private rand: RandomGenerators;
-  constructor(public executionId: string) {
+  constructor(public executionId: string, public metadata?: unknown) {
     this.rand = makeSeededGenerators(executionId);
   }
 

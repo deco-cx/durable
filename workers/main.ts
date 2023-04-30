@@ -93,7 +93,7 @@ const workflowHandler =
         executionDB.pending.get(),
       ]);
 
-      const ctx = new WorkflowContext(executionId);
+      const ctx = new WorkflowContext(executionId, maybeInstance.metadata);
       const workflowFn: WorkflowGenFn<TArgs, TResult> = (
         ...args: [...TArgs]
       ): WorkflowGen<TResult> => {

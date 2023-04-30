@@ -2,6 +2,7 @@
 import { Handler } from "https://deno.land/std@0.173.0/http/server.ts";
 import { router, Routes } from "https://deno.land/x/rutt@0.0.14/mod.ts";
 import { WorkflowContext } from "./mod.ts";
+import { Command } from "./runtime/core/commands.ts";
 import { Workflow } from "./runtime/core/workflow.ts";
 import { Arg } from "./types.ts";
 
@@ -9,6 +10,41 @@ export interface RunRequest<TArgs extends Arg = Arg> {
   results: [[...TArgs], unknown];
   executionId: string;
 }
+
+/**
+ * Exposes a workflow function as a runner.
+ * @param workflow the workflow function
+ * @returns the workflow runner
+ */
+export const workflowRemoteRunner = <
+  TArgs extends Arg = Arg,
+  TResult = unknown,
+  TCtx extends WorkflowContext = WorkflowContext,
+>(
+  workflow: Workflow<TArgs, TResult, TCtx>,
+  Context: new (executionId: string) => TCtx,
+): (req: RunRequest<TArgs>) => Command => {
+  return function (
+    { results: [input, ...results], executionId }: RunRequest<TArgs>,
+  ) {
+    const ctx = new Context(executionId);
+
+    const genFn = workflow(ctx, ...input);
+    let cmd = genFn.next();
+    for (const result of results) {
+      if (cmd.done) {
+        break;
+      }
+      cmd = genFn.next(result);
+    }
+
+    if (cmd.done) {
+      return { name: "finish_workflow", result: cmd.value };
+    }
+
+    return cmd.value;
+  };
+};
 
 /**
  * Exposes a workflow function as a http handler.
@@ -23,25 +59,11 @@ export const workflowHTTPHandler = <
   workflow: Workflow<TArgs, TResult, TCtx>,
   Context: new (executionId: string) => TCtx,
 ): Handler => {
+  const runner = workflowRemoteRunner(workflow, Context);
   return async function (req) {
-    const { results: [input, ...results], executionId } = await req
+    const runReq = await req
       .json() as RunRequest<TArgs>;
-    const ctx = new Context(executionId);
-
-    const genFn = workflow(ctx, ...input);
-    let cmd = genFn.next();
-    for (const result of results) {
-      if (cmd.done) {
-        break;
-      }
-      cmd = genFn.next(result);
-    }
-
-    if (cmd.done) {
-      return Response.json({ name: "finish_workflow", result: cmd.value });
-    }
-
-    return Response.json(cmd.value);
+    return Response.json(runner(runReq));
   };
 };
 

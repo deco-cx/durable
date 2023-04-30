@@ -9,6 +9,7 @@ import { Arg } from "../types.ts";
 export interface WorkflowCreationOptions {
   executionId?: string;
   alias: string;
+  metadata?: unknown;
 }
 
 export class WorkflowService {
@@ -62,7 +63,7 @@ export class WorkflowService {
    * @param input the workflow input
    */
   public async startExecution<TArgs extends Arg = Arg>(
-    { alias, executionId }: WorkflowCreationOptions,
+    { alias, executionId, metadata }: WorkflowCreationOptions,
     input?: [...TArgs],
   ): Promise<WorkflowExecution> {
     const wkflowInstanceId = executionId ?? v4.generate();
@@ -71,6 +72,7 @@ export class WorkflowService {
         alias,
         id: wkflowInstanceId,
         status: "running",
+        metadata,
         input,
       };
       const executionsDB = db.execution(wkflowInstanceId);

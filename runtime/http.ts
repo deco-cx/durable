@@ -1,7 +1,7 @@
 import { Workflow, WorkflowContext } from "../mod.ts";
 import { HttpWorkflowRuntimeRef } from "../registry/registries.ts";
-import { WorkflowGen } from "./core/workflow.ts";
 import { Arg } from "../types.ts";
+import { WorkflowGen } from "./core/workflow.ts";
 
 export const http = <
   TArgs extends Arg = Arg,
@@ -25,6 +25,7 @@ export const http = <
               body: JSON.stringify({
                 results: commandResults,
                 executionId: ctx.executionId,
+                metadata: ctx.metadata,
               }),
             }).then(async (resp) => {
               const msg = await resp.json();

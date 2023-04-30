@@ -68,6 +68,7 @@ export interface WorkflowExecution<TArgs extends Arg = Arg, TResult = unknown> {
   alias: string;
   completedAt?: Date;
   status: WorkflowStatus;
+  metadata?: unknown;
   input?: TArgs;
   output?: TResult;
 }

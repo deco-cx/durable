@@ -67,10 +67,10 @@ const inline = ({ ref }: InlineRegistry) => {
     return runtimePromise;
   };
 };
-
+const sanitize = (str: string) => (str.startsWith("/") ? str : `/${str}`);
 const http =
   ({ baseUrl }: HttpRegistry) => (alias: string): GenericWorkflow => {
-    return httpRuntime({ url: `${baseUrl}/${alias}` });
+    return httpRuntime({ url: `${baseUrl}${sanitize(alias)}` });
   };
 
 const github =
@@ -143,14 +143,14 @@ export const buildWorkflowRegistry = async () => {
   }, REBUILD_TRUSTED_INTERVAL_MS);
   return {
     get: async (alias: string) => {
-      const [namespace, name] = alias.split(".");
+      const [namespace, ...names] = alias.split(".");
       const loadRuntime = namespace.length === 0
         ? current[alias]
         : current[namespace];
       if (loadRuntime === undefined) {
         return undefined;
       }
-      return await loadRuntime(name);
+      return await loadRuntime(names.join("."));
     },
   };
 };
