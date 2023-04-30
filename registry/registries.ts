@@ -50,7 +50,7 @@ export interface GithubRegistry extends RegistryBase {
 
 export interface HttpRegistry extends RegistryBase {
   type: "http";
-  baseUrl: string;
+  baseUrl: string | ((alias: string) => string);
 }
 
 export interface InlineRegistry extends RegistryBase {
@@ -70,7 +70,11 @@ const inline = ({ ref }: InlineRegistry) => {
 const sanitize = (str: string) => (str.startsWith("/") ? str : `/${str}`);
 const http =
   ({ baseUrl }: HttpRegistry) => (alias: string): GenericWorkflow => {
-    return httpRuntime({ url: `${baseUrl}${sanitize(alias)}` });
+    return httpRuntime({
+      url: typeof baseUrl === "function"
+        ? baseUrl(alias)
+        : `${baseUrl}${sanitize(alias)}`,
+    });
   };
 
 const github =
