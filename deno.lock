@@ -115,15 +115,6 @@
     "https://jspm.dev/seedrandom": "dce9ea596ca9b58319a2a159e24ccfae3d7400dd0b8b4d6aa896db98cc2d6896",
     "https://raw.githubusercontent.com/alextes/vegas/main/mod.ts": "122b3c826dc6c5de5d95389f397c5ff69fcd7a3dfca75cc010b41017b2245817",
     "https://raw.githubusercontent.com/alextes/vegas/main/seedrandom.d.ts": "a57cf3cedabf87b87d8fe36dd2e846dd4bdbb878caf6e3e9c7d4848b73267523",
-    "https://raw.githubusercontent.com/deco-sites/fashion/workflows/workflows/createOrder.ts": "93e95567de64676626d48a1f7ab08d4f10e5459f0b51431757294163b4483e5a",
-    "https://raw.githubusercontent.com/mcandeia/deno-workflows/main/backends/backend.ts": "16fd8bf16398441ec27b7cff3438140b1f2dffcac017de413f5c9ae61df71b69",
-    "https://raw.githubusercontent.com/mcandeia/deno-workflows/main/context.ts": "e2a255ad815bf6ed6bb04f683a9d4e787fdbc11b0c9a26bbb22329f355af0614",
-    "https://raw.githubusercontent.com/mcandeia/deno-workflows/main/promise.ts": "d6a26b1e5d015177c37c471b1009f37ed257dcb11b312de6b0077a3f14fed18b",
-    "https://raw.githubusercontent.com/mcandeia/deno-workflows/main/runtime/core/commands.ts": "db6df7492b9eedd718656735280293a0199f4e229a19bb89224447e5410844f6",
-    "https://raw.githubusercontent.com/mcandeia/deno-workflows/main/runtime/core/events.ts": "fdc233903117c9ab485238730fbac10d1fb68f06446b1efad3ca7f9022fc9ba3",
-    "https://raw.githubusercontent.com/mcandeia/deno-workflows/main/runtime/core/state.ts": "d6219e709b5a2d9368d151b98f3a7e87a48d4eefa3fa2f569187f926dbcccec0",
-    "https://raw.githubusercontent.com/mcandeia/deno-workflows/main/runtime/core/workflow.ts": "16a2f082c7c73ffb6d8852f118508c5b6e6527e802ede0377ce2be89bd1b4285",
-    "https://raw.githubusercontent.com/mcandeia/deno-workflows/main/types.ts": "cc559900185387dafb842b4f21c8b0b6b566216d8837e842a709bc4e563aaea5",
-    "https://raw.githubusercontent.com/mcandeia/trusted-registries/main/registries.ts": "d5afe0b5443fc7691b510fef26673821d7271e3cb048bd0f86fed0ab6481dbb5"
+    "https://raw.githubusercontent.com/mcandeia/trusted-registries/67cf3bf02979e5801c4c11db6969b1ab34632466/registries.ts": "999efd96259efd664a2fa0520cd56e5d2eca00cfa35714e8eb5bae98ddac840f"
   }
 }
