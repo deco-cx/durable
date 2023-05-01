@@ -13,7 +13,7 @@ export const queryPendingEvents = (executionId: string) =>
   } AND (visible_at is NULL OR visible_at <= now()) ORDER BY visible_at ASC NULLS FIRST, timestamp ASC`;
 
 export const queryHistory = (executionId: string): string =>
-  `${queryEvents("history", executionId)} ORDER BY seq ASC`;
+  `${queryEvents("history", executionId)} ORDER BY seq DESC`;
 
 export const historyEventToValues =
   (executionId: string) =>
