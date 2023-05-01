@@ -63,12 +63,16 @@ export const WORKFLOW_NOT_COMPLETED: WorkflowStatus[] = [
   "running",
   "sleeping",
 ];
-export interface WorkflowExecution<TArgs extends Arg = Arg, TResult = unknown> {
+export interface WorkflowExecution<
+  TArgs extends Arg = Arg,
+  TResult = unknown,
+  TMetadata = unknown,
+> {
   id: string;
   alias: string;
   completedAt?: Date;
   status: WorkflowStatus;
-  metadata?: unknown;
+  metadata?: TMetadata;
   input?: TArgs;
   output?: TResult;
 }

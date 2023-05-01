@@ -24,6 +24,13 @@ await serve(
       }
       return Response.json(execution);
     },
+    "GET@/executions/:id/history": async (_req, _, { id }) => {
+      const history = await service.executionHistory(id);
+      if (history === undefined) {
+        return Response.json({}, { status: 404 });
+      }
+      return Response.json(history);
+    },
     "DELETE@/executions/:id": async (req, _, { id }) => {
       const reason = await req.json().then((resp) => resp.reason as string);
       await service.cancelExecution(
