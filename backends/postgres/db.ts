@@ -6,8 +6,8 @@ import {
   QueryArguments,
   QueryObjectResult,
 } from "https://deno.land/x/postgres@v0.17.0/query/query.ts";
-import { HistoryEvent } from "../../runtime/core/events.ts";
 import { DEBUG_ENABLED } from "../../mod.ts";
+import { HistoryEvent } from "../../runtime/core/events.ts";
 import { apply } from "../../utils.ts";
 import {
   DB,
@@ -96,7 +96,18 @@ const executionsFor =
       get: () =>
         useClient(
           queryObject<WorkflowExecution>(getExecution(executionId)),
-        ).then(({ rows }) => (rows.length === 0 ? undefined : rows[0])),
+        ).then(({ rows }) => {
+          if (rows.length === 0) {
+            return undefined;
+          }
+          // camel case is not working when selecting from db.
+          const result = rows[0] as WorkflowExecution & { completedat: Date };
+          const { completedat: _ignore, ...rest } = {
+            ...result,
+            completedAt: result?.completedat,
+          };
+          return rest;
+        }),
       create: async (execution: WorkflowExecution) => {
         await useClient(queryObject(insertExecution(executionId, execution)));
       },

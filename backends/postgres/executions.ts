@@ -39,7 +39,7 @@ export const updateExecution = (
 };
 
 export const getExecution = (executionId: string): string => {
-  return `SELECT id, alias, completed_at completedAt, output, input, status, metadata FROM ${TABLE_EXECUTIONS} WHERE id='${executionId}'`;
+  return `SELECT id, alias, completed_at as completedAt, output, input, status, metadata FROM ${TABLE_EXECUTIONS} WHERE id='${executionId}'`;
 };
 
 export const unlockExecution = (executionId: string): string => {
