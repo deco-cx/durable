@@ -2,13 +2,17 @@ import { PromiseOrValue } from "../promise.ts";
 import { HistoryEvent } from "../runtime/core/events.ts";
 import { Arg } from "../types.ts";
 
+export interface PaginationParams {
+  page: number;
+  pageSize: number;
+}
 /**
  * Events is the operation that can be executed against the events.
  */
 export interface Events {
   add(...events: [...HistoryEvent[]]): Promise<void>;
   del(...events: [...HistoryEvent[]]): Promise<void>;
-  get(): Promise<HistoryEvent[]>;
+  get(pagination?: PaginationParams): Promise<HistoryEvent[]>;
 }
 
 /**

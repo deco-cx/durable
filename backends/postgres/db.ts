@@ -13,6 +13,7 @@ import {
   DB,
   Events,
   Execution,
+  PaginationParams,
   PendingExecution,
   WorkflowExecution,
 } from "../backend.ts";
@@ -71,8 +72,16 @@ const eventsFor = (
     del: async (...events: [...HistoryEvent[]]) => {
       await useClient(queryObject(deleteEvents(table, executionId, events)));
     },
-    get: async () => {
-      const events = await useClient(queryObject<PersistedEvent>(eventsQuery));
+    get: async (paginationParams?: PaginationParams) => {
+      const pageSize = paginationParams?.pageSize ?? 10;
+      const page = paginationParams?.page ?? 0;
+      const events = await useClient(
+        queryObject<PersistedEvent>(
+          pageSize !== undefined && page !== undefined
+            ? `${eventsQuery} LIMIT ${pageSize} OFFSET ${pageSize * page}`
+            : eventsQuery,
+        ),
+      );
       return events.rows.map(toHistoryEvent);
     },
   };

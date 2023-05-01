@@ -42,12 +42,17 @@ export class WorkflowService {
    */
   public async executionHistory(
     executionId: string,
+    page = 0,
+    pageSize = 10,
   ): Promise<Pagination<HistoryEvent>> {
-    const history = await this.backend.execution(executionId).history.get();
+    const items = await this.backend.execution(executionId).history.get({
+      page,
+      pageSize,
+    });
     return {
-      page: 0,
-      pageSize: history.length,
-      items: history,
+      page,
+      pageSize,
+      items,
     };
   }
 

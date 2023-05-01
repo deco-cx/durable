@@ -24,8 +24,15 @@ await serve(
       }
       return Response.json(execution);
     },
-    "GET@/executions/:id/history": async (_req, _, { id }) => {
-      const history = await service.executionHistory(id);
+    "GET@/executions/:id/history": async (req, _, { id }) => {
+      const url = new URL(req.url);
+      const page = url.searchParams.get("page");
+      const pageSize = url.searchParams.get("pageSize");
+      const history = await service.executionHistory(
+        id,
+        page ? +page : 0,
+        pageSize ? +pageSize : 10,
+      );
       if (history === undefined) {
         return Response.json({}, { status: 404 });
       }
