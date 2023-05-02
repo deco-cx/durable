@@ -73,12 +73,14 @@ const eventsFor = (
       await useClient(queryObject(deleteEvents(table, executionId, events)));
     },
     get: async (paginationParams?: PaginationParams) => {
-      const pageSize = paginationParams?.pageSize ?? 10;
-      const page = paginationParams?.page ?? 0;
+      const pageSize = paginationParams?.pageSize;
+      const page = paginationParams?.page;
       const events = await useClient(
         queryObject<PersistedEvent>(
           pageSize !== undefined && page !== undefined
-            ? `${eventsQuery} LIMIT ${pageSize} OFFSET ${pageSize * page}`
+            ? `${eventsQuery.replace("ASC", "DESC")} LIMIT ${pageSize} OFFSET ${
+              pageSize * page
+            }`
             : eventsQuery,
         ),
       );

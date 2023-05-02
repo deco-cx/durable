@@ -1,5 +1,6 @@
 {
   "tasks": {
+    "start": "PGUSER=postgresUser PGPASSWORD=postgresPW PGHOST=localhost PGPORT=5455 PGDATABASE=postgresDB deno run -A --watch=api/,backends/,registry/,runtime/,samples/,workers/ dev.ts",
     "pgsql": "docker run --name myPostgresDb -p 5455:5432 -e POSTGRES_USER=postgresUser -e POSTGRES_PASSWORD=postgresPW -e POSTGRES_DB=postgresDB -d postgres",
     "workers": "PGUSER=postgresUser PGPASSWORD=postgresPW PGHOST=localhost PGPORT=5455 PGDATABASE=postgresDB deno run -A workers/main.ts",
     "api": "PGUSER=postgresUser PGPASSWORD=postgresPW PGHOST=localhost PGPORT=5455 PGDATABASE=postgresDB deno run -A api/main.ts"

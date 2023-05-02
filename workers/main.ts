@@ -176,16 +176,22 @@ const run = async (
   );
 };
 
-const WORKER_COUNT = tryParseInt(Deno.env.get("WORKERS_COUNT")) ?? 10;
-const cancellation = new Event();
-Deno.addSignalListener("SIGINT", () => {
-  cancellation.set();
-});
+export const start = async (db?: DB) => {
+  const WORKER_COUNT = tryParseInt(Deno.env.get("WORKERS_COUNT")) ?? 10;
+  const cancellation = new Event();
+  Deno.addSignalListener("SIGINT", () => {
+    cancellation.set();
+  });
 
-Deno.addSignalListener("SIGTERM", () => {
-  cancellation.set();
-});
+  Deno.addSignalListener("SIGTERM", () => {
+    cancellation.set();
+  });
 
-await run(postgres(), { cancellation, concurrency: WORKER_COUNT });
-await cancellation.wait();
-Deno.exit(0);
+  await run(db ?? postgres(), { cancellation, concurrency: WORKER_COUNT });
+  await cancellation.wait();
+  Deno.exit(0);
+};
+
+if (import.meta.main) {
+  await start();
+}
