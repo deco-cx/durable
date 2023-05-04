@@ -168,6 +168,8 @@ function dbFor(useClient: UseClient): DB {
   };
 }
 
-await usePool(queryObject(schema)); // creating db schema.
+if (Deno.env.get("PGDATABASE")) {
+  await usePool(queryObject(schema)); // creating db schema.
+}
 
 export const postgres = () => dbFor(usePool);

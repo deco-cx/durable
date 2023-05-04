@@ -10,7 +10,7 @@ export const queryPendingEvents = (executionId: string) =>
       "pending_events",
       executionId,
     )
-  } AND (visible_at is NULL OR visible_at <= now()) ORDER BY visible_at ASC NULLS FIRST, timestamp ASC`;
+  } AND (visible_at IS NULL OR visible_at <= strftime('%s', CURRENT_TIMESTAMP)) ORDER BY visible_at ASC NULLS FIRST, timestamp ASC`;
 
 export const queryHistory = (executionId: string): string =>
   `${queryEvents("history", executionId)} ORDER BY seq ASC`;

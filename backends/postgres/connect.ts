@@ -2,9 +2,13 @@ import { Pool, PoolClient } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
 import { PromiseOrValue } from "../../promise.ts";
 import { tryParseInt } from "../../utils.ts";
 
-const DEFAULT_POOL_SIZE = 5;
-const poolSize = tryParseInt(Deno.env.get("PGPOOLSIZE")) ?? DEFAULT_POOL_SIZE;
-const pool = new Pool({}, poolSize, true);
+let pool = undefined as unknown as Pool;
+
+if (Deno.env.get("PGDATABASE")) {
+  const DEFAULT_POOL_SIZE = 5;
+  const poolSize = tryParseInt(Deno.env.get("PGPOOLSIZE")) ?? DEFAULT_POOL_SIZE;
+  pool = new Pool({}, poolSize, true);
+}
 
 /**
  * usePool retrieves a client from client pool and execute the given function using the client as paramater.
