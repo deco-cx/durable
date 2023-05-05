@@ -6,9 +6,10 @@ import { Command } from "./runtime/core/commands.ts";
 import { Workflow } from "./runtime/core/workflow.ts";
 import { Arg } from "./types.ts";
 
-export interface RunRequest<TArgs extends Arg = Arg> {
+export interface RunRequest<TArgs extends Arg = Arg, TMetadata = any> {
   results: [[...TArgs], unknown];
   executionId: string;
+  metadata: TMetadata;
 }
 
 /**
@@ -22,12 +23,12 @@ export const workflowRemoteRunner = <
   TCtx extends WorkflowContext = WorkflowContext,
 >(
   workflow: Workflow<TArgs, TResult, TCtx>,
-  Context: new (executionId: string) => TCtx,
+  Context: new (executionId: string, metadata?: unknown) => TCtx,
 ): (req: RunRequest<TArgs>) => Command => {
   return function (
-    { results: [input, ...results], executionId }: RunRequest<TArgs>,
+    { results: [input, ...results], executionId, metadata }: RunRequest<TArgs>,
   ) {
-    const ctx = new Context(executionId);
+    const ctx = new Context(executionId, metadata);
 
     const genFn = workflow(ctx, ...input);
     let cmd = genFn.next();
@@ -57,7 +58,7 @@ export const workflowHTTPHandler = <
   TCtx extends WorkflowContext = WorkflowContext,
 >(
   workflow: Workflow<TArgs, TResult, TCtx>,
-  Context: new (executionId: string) => TCtx,
+  Context: new (executionId: string, metadata?: unknown) => TCtx,
 ): Handler => {
   const runner = workflowRemoteRunner(workflow, Context);
   return async function (req) {

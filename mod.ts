@@ -8,6 +8,8 @@ export type { RunRequest } from "./handler.ts";
 export type { InvokeHttpEndpointCommand } from "./runtime/core/commands.ts";
 export type { WorkflowGen } from "./runtime/core/workflow.ts";
 export type { Command } from "./runtime/core/commands.ts";
+export type { Arg } from "./types.ts";
+
 export {
   DEBUG_ENABLED,
   useWorkflowRoutes,
