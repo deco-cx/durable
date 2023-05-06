@@ -12,16 +12,16 @@ import {
   insertEvents,
   PersistedEvent,
   queryHistory,
-  queryPendingEvents,
   toHistoryEvent,
 } from "../postgres/events.ts";
+import { queryPendingEvents } from "./events.ts";
 import {
   getExecution,
   insertExecution,
-  pendingExecutionsSQLite,
   unlockExecution,
   updateExecution,
 } from "../postgres/executions.ts";
+import { pendingExecutionsSQLite } from "./executions.ts";
 
 import schema from "./schema.ts";
 import { DB as DBSqlite } from "https://deno.land/x/sqlite@v3.7.2/mod.ts";

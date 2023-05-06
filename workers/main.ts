@@ -188,7 +188,10 @@ export const start = async (db?: DB) => {
     cancellation.set();
   });
 
-  await run(db ?? postgres(), { cancellation, concurrency: WORKER_COUNT });
+  await run(db ?? await postgres(), {
+    cancellation,
+    concurrency: WORKER_COUNT,
+  });
   await cancellation.wait();
   Deno.exit(0);
 };

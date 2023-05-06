@@ -5,7 +5,7 @@ import { WorkflowService } from "./service.ts";
 import { DB } from "../backends/backend.ts";
 
 export const start = async (db?: DB) => {
-  const service = new WorkflowService(db ?? postgres());
+  const service = new WorkflowService(db ?? await postgres());
   return await serve(
     router({
       "POST@/executions": async (req) => {

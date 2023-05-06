@@ -65,24 +65,3 @@ WHERE ctid IN (
     LIMIT ${limit}
 ) RETURNING id
 `;
-
-// No CTID <=> ROWID equivalence to sqlite and PGSQL
-export const pendingExecutionsSQLite = (
-  lockInMinutes: number,
-  limit: number,
-) => `
-UPDATE ${TABLE_EXECUTIONS}
-SET locked_until = CURRENT_TIMESTAMP + (${lockInMinutes} * 60)
-WHERE rowid IN (
-  SELECT rowid FROM ${TABLE_EXECUTIONS} i
-    WHERE
-      (locked_until IS NULL OR locked_until < CURRENT_TIMESTAMP)
-      AND status IN ${RUNNING_STATUS}
-      AND EXISTS (
-        SELECT 1
-          FROM pending_events
-          WHERE execution_id = i.id AND (visible_at IS NULL OR visible_at <= CURRENT_TIMESTAMP)
-      )
-    LIMIT ${limit}
-) RETURNING id
-`;

@@ -8,7 +8,10 @@
   },
   "fmt": {
     "files": {
-      "exclude": ["README.md", "LICENSE"]
+      "exclude": [
+        "README.md",
+        "LICENSE"
+      ]
     }
   },
   "importMap": "./import_map.json"
