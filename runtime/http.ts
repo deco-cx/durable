@@ -1,5 +1,6 @@
 import { Workflow, WorkflowContext } from "../mod.ts";
 import { HttpWorkflowRuntimeRef } from "../registry/registries.ts";
+import { signedFetch } from "../security/fetch.ts";
 import { Arg } from "../types.ts";
 import { WorkflowGen } from "./core/workflow.ts";
 
@@ -20,8 +21,11 @@ export const http = <
         yield {
           name: "delegated",
           getCmd: async () => {
-            return await fetch(url, {
+            return await signedFetch(url, {
               method: "POST",
+              headers: {
+                "content-type": "application/json",
+              },
               body: JSON.stringify({
                 results: commandResults,
                 executionId: ctx.executionId,

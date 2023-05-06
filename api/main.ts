@@ -1,13 +1,15 @@
 import { serve } from "https://deno.land/std@0.173.0/http/server.ts";
 import { router } from "https://deno.land/x/rutt@0.0.14/mod.ts";
-import { postgres } from "../backends/postgres/db.ts";
-import { WorkflowService } from "./service.ts";
 import { DB } from "../backends/backend.ts";
+import { postgres } from "../backends/postgres/db.ts";
+import { wellKnownJWKSHandler } from "../security/identity.ts";
+import { WorkflowService } from "./service.ts";
 
 export const start = async (db?: DB) => {
   const service = new WorkflowService(db ?? await postgres());
   return await serve(
     router({
+      "GET@/.well_known/jwks.json": wellKnownJWKSHandler,
       "POST@/executions": async (req) => {
         const { alias, input, metadata, id } = await req.json();
         return Response.json(

@@ -2,6 +2,12 @@ import { WorkflowContext } from "./context.ts";
 import { useWorkflowRoutes, workflowHTTPHandler } from "./handler.ts";
 import type { Workflow } from "./runtime/core/workflow.ts";
 import { tryParseBool } from "./utils.ts";
+export {
+  fetchPublicKey,
+  signRequest,
+  verifySignature,
+  wellKnownJWKSHandler,
+} from "./security/identity.ts";
 export type { WorkflowExecution } from "./backends/backend.ts";
 export { workflowRemoteRunner } from "./handler.ts";
 export type { RunRequest } from "./handler.ts";

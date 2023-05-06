@@ -5,6 +5,7 @@ import { WorkflowContext } from "./mod.ts";
 import { Command } from "./runtime/core/commands.ts";
 import { Workflow } from "./runtime/core/workflow.ts";
 import { Arg } from "./types.ts";
+import { verifySignature } from "./security/identity.ts";
 
 export interface RunRequest<TArgs extends Arg = Arg, TMetadata = any> {
   results: [[...TArgs], unknown];
@@ -59,9 +60,13 @@ export const workflowHTTPHandler = <
 >(
   workflow: Workflow<TArgs, TResult, TCtx>,
   Context: new (executionId: string, metadata?: unknown) => TCtx,
+  workerPublicKey?: JsonWebKey,
 ): Handler => {
   const runner = workflowRemoteRunner(workflow, Context);
   return async function (req) {
+    if (workerPublicKey) {
+      verifySignature(req, workerPublicKey);
+    }
     const runReq = await req
       .json() as RunRequest<TArgs>;
     return Response.json(runner(runReq));
