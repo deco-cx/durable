@@ -21,7 +21,9 @@ const requestTargetInput = `@request-target`;
 const requestTarget = (req: Request) => {
   const url = new URL(req.url);
 
-  return `"(${requestTargetInput})": ${req.method.toLowerCase()} ${url.pathname}`;
+  return `"(${requestTargetInput})": ${req.method.toLowerCase()} ${url.pathname}${
+    url.search ? `?${url.search}` : ""
+  }`;
 };
 
 const SIGNATURE_HEADER = "signature";
@@ -111,11 +113,17 @@ export const signRequest = async (req: Request): Promise<Request> => {
   return req;
 };
 
+export interface SignatureInput {
+  createdAt: Date;
+  keyId: string;
+  sig: string;
+}
+
 // Verify signatures using the public key
 export const verifySignature = async (
   req: Request,
   key: JsonWebKey,
-): Promise<boolean> => {
+): Promise<SignatureInput> => {
   const _signature = req.headers.get(SIGNATURE_HEADER);
   if (!_signature || _signature.length === 0) {
     throw new Error(`Something went wrong`); // do not expose that the signature is invalid
@@ -145,5 +153,13 @@ export const verifySignature = async (
     signatureBuffer,
     dataHash,
   );
-  return verified;
+  if (!verified) {
+    throw new Error(`Something went wrong`); // do not expose that the signature is invalid
+  }
+  const date = req.headers.get("date") ?? Date.now();
+  return {
+    createdAt: new Date(date),
+    keyId,
+    sig: sigName,
+  };
 };

@@ -11,5 +11,12 @@ export const signedFetch = async (
   init?: FetchParams[1],
 ) => {
   const req = new Request(input, init);
+  if (!req.headers.has("host")) {
+    req.headers.set("host", new URL(req.url).host);
+  }
+  const body = init?.body;
+  if (!req.headers.has("content-length") && body) {
+    req.headers.set("content-length", `${body.toString().length}`);
+  }
   return fetch(await signRequest(req));
 };
