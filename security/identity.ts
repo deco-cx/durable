@@ -108,7 +108,10 @@ export const signRequest = async (req: Request): Promise<Request> => {
     dataHash,
   );
   const encodedSignature = encode(new Uint8Array(signature));
-  req.headers.set(SIGNATURE_HEADER, `${sigName}=:${encodedSignature}:`);
+  req.headers.set(
+    SIGNATURE_HEADER,
+    `${sigName}=:${encode(new Uint8Array(dataHash))}.${encodedSignature}:`,
+  );
 
   return req;
 };
@@ -128,12 +131,10 @@ export const verifySignature = async (
   if (!_signature || _signature.length === 0) {
     throw new Error(`Something went wrong`); // do not expose that the signature is invalid
   }
-  const { [sigName]: signature } = parseSignatureHeader(_signature);
-  const verifyAgainst = buildReqSign(req);
-  const dataHash = await crypto.subtle.digest(
-    hash,
-    new TextEncoder().encode(verifyAgainst),
-  );
+  const { [sigName]: signAndData } = parseSignatureHeader(_signature);
+  const [verifyAgainstHash, signature] = signAndData.split(".");
+
+  const dataHash = decode(verifyAgainstHash);
 
   const signatureBuffer = decode(signature);
 
