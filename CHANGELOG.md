@@ -8,8 +8,8 @@ and this project adheres to
 
 ## Unreleased
 
+## 0.1.0 - 2023-05-10
 ### Added
-
 - Signature header for any http request
 - Allow custom context
 - Allow metadata for starting a new workflow
