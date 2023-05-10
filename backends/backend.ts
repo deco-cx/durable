@@ -2,13 +2,17 @@ import { PromiseOrValue } from "../promise.ts";
 import { HistoryEvent } from "../runtime/core/events.ts";
 import { Arg } from "../types.ts";
 
+export interface PaginationParams {
+  page: number;
+  pageSize: number;
+}
 /**
  * Events is the operation that can be executed against the events.
  */
 export interface Events {
   add(...events: [...HistoryEvent[]]): Promise<void>;
   del(...events: [...HistoryEvent[]]): Promise<void>;
-  get(): Promise<HistoryEvent[]>;
+  get(pagination?: PaginationParams): Promise<HistoryEvent[]>;
 }
 
 /**
@@ -63,11 +67,16 @@ export const WORKFLOW_NOT_COMPLETED: WorkflowStatus[] = [
   "running",
   "sleeping",
 ];
-export interface WorkflowExecution<TArgs extends Arg = Arg, TResult = unknown> {
+export interface WorkflowExecution<
+  TArgs extends Arg = Arg,
+  TResult = unknown,
+  TMetadata = unknown,
+> {
   id: string;
   alias: string;
   completedAt?: Date;
   status: WorkflowStatus;
+  metadata?: TMetadata;
   input?: TArgs;
   output?: TResult;
 }

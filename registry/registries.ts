@@ -1,5 +1,6 @@
 // deno-lint-ignore-file no-explicit-any
 import { MINUTE } from "https://deno.land/std@0.160.0/datetime/mod.ts";
+import { WorkflowContext } from "../context.ts";
 import { Workflow } from "../mod.ts";
 import { PromiseOrValue } from "../promise.ts";
 import { runtimeBuilder } from "../runtime/builders.ts";
@@ -9,9 +10,13 @@ import { Arg } from "../types.ts";
 import { setIntervalFlight } from "../utils.ts";
 
 export interface WorkflowRegistry {
-  get<TArgs extends Arg = Arg, TResult = unknown>(
+  get<
+    TArgs extends Arg = Arg,
+    TResult = unknown,
+    TCtx extends WorkflowContext = WorkflowContext,
+  >(
     alias: string,
-  ): PromiseOrValue<Workflow<TArgs, TResult> | undefined>;
+  ): PromiseOrValue<Workflow<TArgs, TResult, TCtx> | undefined>;
 }
 export interface WorkflowRuntimeRefBase {
   type: string;
@@ -45,7 +50,7 @@ export interface GithubRegistry extends RegistryBase {
 
 export interface HttpRegistry extends RegistryBase {
   type: "http";
-  baseUrl: string;
+  baseUrl: string | ((alias: string) => string);
 }
 
 export interface InlineRegistry extends RegistryBase {
@@ -55,17 +60,21 @@ export interface InlineRegistry extends RegistryBase {
 
 export type Registry = GithubRegistry | HttpRegistry | InlineRegistry;
 
-export type GenericWorkflow = Workflow<any, any>;
+export type GenericWorkflow = Workflow<any, any, any>;
 const inline = ({ ref }: InlineRegistry) => {
   const runtimePromise = runtimeBuilder[ref.type](ref);
   return (_: string) => {
     return runtimePromise;
   };
 };
-
+const sanitize = (str: string) => (str.startsWith("/") ? str : `/${str}`);
 const http =
   ({ baseUrl }: HttpRegistry) => (alias: string): GenericWorkflow => {
-    return httpRuntime({ url: `${baseUrl}/${alias}` });
+    return httpRuntime({
+      url: typeof baseUrl === "function"
+        ? baseUrl(alias)
+        : `${baseUrl}${sanitize(alias)}`,
+    });
   };
 
 const github =
@@ -112,7 +121,7 @@ const buildAll = (
   );
 };
 const TRUSTED_REGISTRIES = Deno.env.get("TRUSTED_REGISTRIES_URL") ??
-  "https://raw.githubusercontent.com/mcandeia/trusted-registries/main/registries.ts";
+  "https://raw.githubusercontent.com/mcandeia/trusted-registries/67cf3bf02979e5801c4c11db6969b1ab34632466/registries.ts";
 
 const fetchTrusted = async (): Promise<
   Record<string, Registry>
@@ -138,14 +147,14 @@ export const buildWorkflowRegistry = async () => {
   }, REBUILD_TRUSTED_INTERVAL_MS);
   return {
     get: async (alias: string) => {
-      const [namespace, name] = alias.split(".");
+      const [namespace, ...names] = alias.split(".");
       const loadRuntime = namespace.length === 0
         ? current[alias]
         : current[namespace];
       if (loadRuntime === undefined) {
         return undefined;
       }
-      return await loadRuntime(name);
+      return await loadRuntime(names.join("."));
     },
   };
 };

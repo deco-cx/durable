@@ -6,13 +6,14 @@ import {
   QueryArguments,
   QueryObjectResult,
 } from "https://deno.land/x/postgres@v0.17.0/query/query.ts";
-import { HistoryEvent } from "../../runtime/core/events.ts";
 import { DEBUG_ENABLED } from "../../mod.ts";
+import { HistoryEvent } from "../../runtime/core/events.ts";
 import { apply } from "../../utils.ts";
 import {
   DB,
   Events,
   Execution,
+  PaginationParams,
   PendingExecution,
   WorkflowExecution,
 } from "../backend.ts";
@@ -71,8 +72,18 @@ const eventsFor = (
     del: async (...events: [...HistoryEvent[]]) => {
       await useClient(queryObject(deleteEvents(table, executionId, events)));
     },
-    get: async () => {
-      const events = await useClient(queryObject<PersistedEvent>(eventsQuery));
+    get: async (paginationParams?: PaginationParams) => {
+      const pageSize = paginationParams?.pageSize;
+      const page = paginationParams?.page;
+      const events = await useClient(
+        queryObject<PersistedEvent>(
+          pageSize !== undefined && page !== undefined
+            ? `${eventsQuery.replace("ASC", "DESC")} LIMIT ${pageSize} OFFSET ${
+              pageSize * page
+            }`
+            : eventsQuery,
+        ),
+      );
       return events.rows.map(toHistoryEvent);
     },
   };
@@ -96,7 +107,18 @@ const executionsFor =
       get: () =>
         useClient(
           queryObject<WorkflowExecution>(getExecution(executionId)),
-        ).then(({ rows }) => (rows.length === 0 ? undefined : rows[0])),
+        ).then(({ rows }) => {
+          if (rows.length === 0) {
+            return undefined;
+          }
+          // camel case is not working when selecting from db.
+          const result = rows[0] as WorkflowExecution & { completedat: Date };
+          const { completedat: _ignore, ...rest } = {
+            ...result,
+            completedAt: result?.completedat,
+          };
+          return rest;
+        }),
       create: async (execution: WorkflowExecution) => {
         await useClient(queryObject(insertExecution(executionId, execution)));
       },
@@ -146,6 +168,7 @@ function dbFor(useClient: UseClient): DB {
   };
 }
 
-await usePool(queryObject(schema)); // creating db schema.
-
-export const postgres = () => dbFor(usePool);
+export const postgres = async () => {
+  await usePool(queryObject(schema)); // creating db schema.
+  return dbFor(usePool);
+};

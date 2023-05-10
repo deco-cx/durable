@@ -1,6 +1,7 @@
 // deno-lint-ignore-file no-explicit-any
 import { Activity } from "../../context.ts";
 import { isAwaitable, PromiseOrValue } from "../../promise.ts";
+import { signedFetch } from "../../security/fetch.ts";
 import { Arg } from "../../types.ts";
 import { ActivityStartedEvent, HistoryEvent, newEvent } from "./events.ts";
 import { WorkflowState } from "./state.ts";
@@ -200,7 +201,7 @@ const delegated = async (
 const invoke_http_endpoint = async (
   { headers, url, method, body }: InvokeHttpEndpointCommand,
 ): Promise<HistoryEvent[]> => {
-  const resp = await fetch(url, {
+  const resp = await signedFetch(url, {
     headers,
     method,
     body: body ? JSON.stringify(body) : undefined,

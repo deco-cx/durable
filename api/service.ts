@@ -1,6 +1,6 @@
 import { v4 } from "https://deno.land/std@0.72.0/uuid/mod.ts";
 import { DB, WorkflowExecution } from "../backends/backend.ts";
-import { newEvent } from "../runtime/core/events.ts";
+import { HistoryEvent, newEvent } from "../runtime/core/events.ts";
 import { Arg } from "../types.ts";
 
 /**
@@ -9,6 +9,12 @@ import { Arg } from "../types.ts";
 export interface WorkflowCreationOptions {
   executionId?: string;
   alias: string;
+  metadata?: unknown;
+}
+export interface Pagination<T> {
+  page: number;
+  pageSize: number;
+  items: T[];
 }
 
 export class WorkflowService {
@@ -27,6 +33,27 @@ export class WorkflowService {
       type: "workflow_canceled",
       reason,
     });
+  }
+
+  /**
+   * executionHistory execution gets the execution history
+   * @param executionId the executionId.
+   * @returns the history pagination
+   */
+  public async executionHistory(
+    executionId: string,
+    page = 0,
+    pageSize = 10,
+  ): Promise<Pagination<HistoryEvent>> {
+    const items = await this.backend.execution(executionId).history.get({
+      page,
+      pageSize,
+    });
+    return {
+      page,
+      pageSize,
+      items,
+    };
   }
 
   /**
@@ -62,7 +89,7 @@ export class WorkflowService {
    * @param input the workflow input
    */
   public async startExecution<TArgs extends Arg = Arg>(
-    { alias, executionId }: WorkflowCreationOptions,
+    { alias, executionId, metadata }: WorkflowCreationOptions,
     input?: [...TArgs],
   ): Promise<WorkflowExecution> {
     const wkflowInstanceId = executionId ?? v4.generate();
@@ -71,6 +98,7 @@ export class WorkflowService {
         alias,
         id: wkflowInstanceId,
         status: "running",
+        metadata,
         input,
       };
       const executionsDB = db.execution(wkflowInstanceId);

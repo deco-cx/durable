@@ -25,7 +25,8 @@ const MAX_LOCK_MINUTES = tryParseInt(Deno.env.get("WORKERS_LOCK_MINUTES")) ??
   10;
 
 const DELAY_WHEN_NO_PENDING_EVENTS_MS =
-  tryParseInt(Deno.env.get("PG_INTERVAL_EMPTY_EVENTS")) ?? 15_000;
+  tryParseInt(Deno.env.get("WORKERS_ON_EMPTY_EVENTS_SLEEP_INTERVAL_MS")) ??
+    15_000;
 
 async function* executionsGenerator(
   db: DB,
@@ -93,7 +94,7 @@ const workflowHandler =
         executionDB.pending.get(),
       ]);
 
-      const ctx = new WorkflowContext(executionId);
+      const ctx = new WorkflowContext(executionId, maybeInstance.metadata);
       const workflowFn: WorkflowGenFn<TArgs, TResult> = (
         ...args: [...TArgs]
       ): WorkflowGen<TResult> => {
@@ -176,16 +177,25 @@ const run = async (
   );
 };
 
-const WORKER_COUNT = tryParseInt(Deno.env.get("WORKERS_COUNT")) ?? 10;
-const cancellation = new Event();
-Deno.addSignalListener("SIGINT", () => {
-  cancellation.set();
-});
+export const start = async (db?: DB) => {
+  const WORKER_COUNT = tryParseInt(Deno.env.get("WORKERS_COUNT")) ?? 10;
+  const cancellation = new Event();
+  Deno.addSignalListener("SIGINT", () => {
+    cancellation.set();
+  });
 
-Deno.addSignalListener("SIGTERM", () => {
-  cancellation.set();
-});
+  Deno.addSignalListener("SIGTERM", () => {
+    cancellation.set();
+  });
 
-await run(postgres(), { cancellation, concurrency: WORKER_COUNT });
-await cancellation.wait();
-Deno.exit(0);
+  await run(db ?? await postgres(), {
+    cancellation,
+    concurrency: WORKER_COUNT,
+  });
+  await cancellation.wait();
+  Deno.exit(0);
+};
+
+if (import.meta.main) {
+  await start();
+}
