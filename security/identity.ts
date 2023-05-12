@@ -2,17 +2,28 @@ import {
   decode,
   encode,
 } from "https://deno.land/std@0.186.0/encoding/base64.ts";
-import { alg, hash, privateKey, publicKey } from "./keys.ts";
+import { alg, getKeyPair, hash } from "./keys.ts";
 
 const sigName = "sig1";
 
-const pkCrypto = await crypto.subtle.importKey(
-  "jwk",
-  privateKey,
-  { name: alg, hash },
-  true,
-  ["sign"],
-);
+let pkCrypto: null | Promise<CryptoKey> = null;
+
+const getPkCrypto = async () => {
+  const [_, privateKey] = await getKeyPair();
+  pkCrypto ??= crypto.subtle.importKey(
+    "jwk",
+    privateKey,
+    { name: alg, hash },
+    true,
+    ["sign"],
+  );
+  return await pkCrypto;
+};
+
+const getPublicKey = async () => {
+  const [publicKey] = await getKeyPair();
+  return publicKey;
+};
 
 const signatureHeaders = ["host", "content-length", "date"];
 const signatureParamsInput = `@signature-params`;
@@ -57,8 +68,8 @@ const parseSignatureHeader = (sig: string): Record<string, string> => {
 const keyId = "durable-workers-key";
 
 // should be /.well_known/jwks.json
-export const wellKnownJWKSHandler = () =>
-  Response.json({ keys: [{ ...publicKey, kid: keyId }] });
+export const wellKnownJWKSHandler = async () =>
+  Response.json({ keys: [{ ...await getPublicKey(), kid: keyId }] });
 
 export const fetchPublicKey = async (
   service: string,
@@ -96,15 +107,18 @@ export const signRequest = async (req: Request): Promise<Request> => {
   );
 
   const data = buildReqSign(req);
-  const dataHash = await crypto.subtle.digest(
-    hash,
-    new TextEncoder().encode(data),
-  );
+  const [dataHash, pk] = await Promise.all([
+    crypto.subtle.digest(
+      hash,
+      new TextEncoder().encode(data),
+    ),
+    getPkCrypto(),
+  ]);
   const signature = await crypto.subtle.sign(
     {
       name: alg,
     },
-    pkCrypto,
+    pk,
     dataHash,
   );
   const encodedSignature = encode(new Uint8Array(signature));
