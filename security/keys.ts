@@ -33,8 +33,12 @@ const getOrGenerateKeyPair = async (): Promise<[JsonWebKey, JsonWebKey]> => {
   ];
 };
 // Generate an RSA key pair
-export const [publicKey, privateKey] = await getOrGenerateKeyPair();
+export let keys: null | Promise<[JsonWebKey, JsonWebKey]> = null;
 
+export const getKeyPair = async () => {
+  keys ??= getOrGenerateKeyPair();
+  return await keys;
+};
 // rotate keys if necessary
 if (import.meta.main) {
   const [kpub, kprivate] = await generateKeyPair();
