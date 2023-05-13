@@ -24,7 +24,7 @@ export {
   workflowHTTPHandler,
 };
 
-const DEBUG_ENABLED = Deno?.env
-  ? tryParseBool(Deno.env.get("ENABLE_DEBUG")) ??
-    false
-  : false;
+const DEBUG_ENABLED = typeof Deno === "undefined"
+  ? false
+  : tryParseBool(Deno.env.get("ENABLE_DEBUG")) ??
+    false;
