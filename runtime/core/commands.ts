@@ -213,10 +213,22 @@ const invoke_http_endpoint = async (
     hd[k] = v;
   }
 
+  let respBody = undefined;
+  if (resp.ok) {
+    if (resp.headers.get("content-type") === "application/json") {
+      respBody = await resp.json();
+    } else {
+      respBody = await resp.text().catch((err) => {
+        console.error("error when parsing resp body", err);
+        return "";
+      });
+    }
+  }
+
   return [{
     ...newEvent(),
     type: "invoke_http_response",
-    body: await resp.json(), // FIXME(mcandeia) should we format other type of http formats?
+    body: respBody, // FIXME(mcandeia) should we format other type of http formats?
     status: resp.status,
     headers: hd,
   }];
