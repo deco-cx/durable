@@ -1,3 +1,4 @@
+import { Metadata } from "../context.ts";
 import { PromiseOrValue } from "../promise.ts";
 import { HistoryEvent } from "../runtime/core/events.ts";
 import { Arg } from "../types.ts";
@@ -70,7 +71,7 @@ export const WORKFLOW_NOT_COMPLETED: WorkflowStatus[] = [
 export interface WorkflowExecution<
   TArgs extends Arg = Arg,
   TResult = unknown,
-  TMetadata = unknown,
+  TMetadata extends Metadata = Metadata,
 > {
   id: string;
   alias: string;

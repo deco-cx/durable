@@ -1,13 +1,17 @@
 // deno-lint-ignore-file no-explicit-any
 import { Handler } from "https://deno.land/std@0.173.0/http/server.ts";
 import { router, Routes } from "https://deno.land/x/rutt@0.0.14/mod.ts";
+import { Metadata } from "./context.ts";
 import { WorkflowContext } from "./mod.ts";
 import { Command } from "./runtime/core/commands.ts";
 import { Workflow } from "./runtime/core/workflow.ts";
-import { Arg } from "./types.ts";
 import { verifySignature } from "./security/identity.ts";
+import { Arg } from "./types.ts";
 
-export interface RunRequest<TArgs extends Arg = Arg, TMetadata = any> {
+export interface RunRequest<
+  TArgs extends Arg = Arg,
+  TMetadata extends Metadata = Metadata,
+> {
   results: [[...TArgs], unknown];
   executionId: string;
   metadata: TMetadata;
@@ -22,12 +26,16 @@ export const workflowRemoteRunner = <
   TArgs extends Arg = Arg,
   TResult = unknown,
   TCtx extends WorkflowContext = WorkflowContext,
+  TMetadata extends Metadata = Metadata,
 >(
   workflow: Workflow<TArgs, TResult, TCtx>,
-  Context: new (executionId: string, metadata?: unknown) => TCtx,
-): (req: RunRequest<TArgs>) => Command => {
+  Context: new (executionId: string, metadata?: TMetadata) => TCtx,
+): (req: RunRequest<TArgs, TMetadata>) => Command => {
   return function (
-    { results: [input, ...results], executionId, metadata }: RunRequest<TArgs>,
+    { results: [input, ...results], executionId, metadata }: RunRequest<
+      TArgs,
+      TMetadata
+    >,
   ) {
     const ctx = new Context(executionId, metadata);
 
@@ -57,9 +65,10 @@ export const workflowHTTPHandler = <
   TArgs extends Arg = Arg,
   TResult = unknown,
   TCtx extends WorkflowContext = WorkflowContext,
+  TMetadata extends Metadata = Metadata,
 >(
   workflow: Workflow<TArgs, TResult, TCtx>,
-  Context: new (executionId: string, metadata?: unknown) => TCtx,
+  Context: new (executionId: string, metadata?: TMetadata) => TCtx,
   workerPublicKey?: JsonWebKey,
 ): Handler => {
   const runner = workflowRemoteRunner(workflow, Context);
@@ -68,7 +77,7 @@ export const workflowHTTPHandler = <
       verifySignature(req, workerPublicKey);
     }
     const runReq = await req
-      .json() as RunRequest<TArgs>;
+      .json() as RunRequest<TArgs, TMetadata>;
     return Response.json(runner(runReq));
   };
 };

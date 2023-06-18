@@ -1,15 +1,18 @@
 import { v4 } from "https://deno.land/std@0.72.0/uuid/mod.ts";
 import { DB, WorkflowExecution } from "../backends/backend.ts";
+import { Metadata } from "../context.ts";
 import { HistoryEvent, newEvent } from "../runtime/core/events.ts";
 import { Arg } from "../types.ts";
 
 /**
  * WorkflowCreationOptions is used for creating workflows of a given executionId.
  */
-export interface WorkflowCreationOptions {
+export interface WorkflowCreationOptions<
+  TMetadata extends Metadata = Metadata,
+> {
   executionId?: string;
   alias: string;
-  metadata?: unknown;
+  metadata?: TMetadata;
 }
 export interface Pagination<T> {
   page: number;

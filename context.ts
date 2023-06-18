@@ -4,13 +4,13 @@ import {
 } from "https://raw.githubusercontent.com/alextes/vegas/main/mod.ts";
 import { PromiseOrValue } from "./promise.ts";
 import {
+  InvokeHttpEndpointCommand,
   LocalActivityCommand,
   ScheduleActivityCommand,
   SleepCommand,
   WaitForSignalCommand,
 } from "./runtime/core/commands.ts";
 import { Arg } from "./types.ts";
-import { InvokeHttpEndpointCommand } from "./runtime/core/commands.ts";
 
 export type ActivityResult<T> = PromiseOrValue<T>;
 
@@ -41,12 +41,16 @@ export type ActivityExecutor<TArgs extends Arg, TResult> = (
   ...args: [...TArgs]
 ) => ActivityResult<TResult>;
 
+export interface Metadata {
+  defaultHeaders?: Record<string, string>;
+}
+
 /**
  * WorkflowContext is used for providing api access to the workflow engine.
  */
-export class WorkflowContext {
+export class WorkflowContext<TMetadata extends Metadata = Metadata> {
   private rand: RandomGenerators;
-  constructor(public executionId: string, public metadata?: unknown) {
+  constructor(public executionId: string, public metadata?: TMetadata) {
     this.rand = makeSeededGenerators(executionId);
   }
 
