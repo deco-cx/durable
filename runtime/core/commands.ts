@@ -227,6 +227,7 @@ const invoke_http_endpoint = async (
 
   return [{
     ...newEvent(),
+    url,
     type: "invoke_http_response",
     body: respBody, // FIXME(mcandeia) should we format other type of http formats?
     status: resp.status,

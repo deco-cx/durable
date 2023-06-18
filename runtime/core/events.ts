@@ -22,6 +22,7 @@ export interface InvokeHttpResponseEvent<TBody = unknown> extends Event {
   type: "invoke_http_response";
   body?: TBody;
   headers: Record<string, string>;
+  url: string;
   status: number;
   responseFormat?: "complete" | "body-only";
 }
