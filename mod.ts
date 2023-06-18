@@ -4,6 +4,7 @@ import type { Workflow } from "./runtime/core/workflow.ts";
 import { tryParseBool } from "./utils.ts";
 export {
   fetchPublicKey,
+  InvalidSignatureError,
   signRequest,
   verifySignature,
   wellKnownJWKSHandler,
