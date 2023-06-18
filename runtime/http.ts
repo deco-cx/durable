@@ -24,7 +24,6 @@ export const http = <
             return await signedFetch(url, {
               method: "POST",
               headers: {
-                ...(ctx?.metadata?.defaultHeaders ?? {}),
                 "content-type": "application/json",
               },
               body: JSON.stringify({

@@ -42,7 +42,6 @@ export type ActivityExecutor<TArgs extends Arg, TResult> = (
 ) => ActivityResult<TResult>;
 
 export interface Metadata {
-  defaultHeaders?: Record<string, string>;
 }
 
 /**
