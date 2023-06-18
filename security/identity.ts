@@ -136,6 +136,12 @@ export interface SignatureInput {
   sig: string;
 }
 
+export class InvalidSignatureError extends Error {
+  constructor() {
+    super("Something went wrong");
+  }
+}
+
 // Verify signatures using the public key
 export const verifySignature = async (
   req: Request,
@@ -169,7 +175,7 @@ export const verifySignature = async (
     dataHash,
   );
   if (!verified) {
-    throw new Error(`Something went wrong`); // do not expose that the signature is invalid
+    throw new InvalidSignatureError(); // do not expose that the signature is invalid
   }
   const date = req.headers.get("date") ?? Date.now();
   return {
