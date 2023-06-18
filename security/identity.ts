@@ -139,7 +139,7 @@ export interface SignatureInput {
 // Verify signatures using the public key
 export const verifySignature = async (
   req: Request,
-  key: JsonWebKey,
+  key: JsonWebKey | Promise<JsonWebKey>,
 ): Promise<SignatureInput> => {
   const _signature = req.headers.get(SIGNATURE_HEADER);
   if (!_signature || _signature.length === 0) {
@@ -155,7 +155,7 @@ export const verifySignature = async (
   // import key from /.well_known endpoint
   const pk = await crypto.subtle.importKey(
     "jwk",
-    key,
+    await key,
     { name: alg, hash },
     true,
     ["verify"],
