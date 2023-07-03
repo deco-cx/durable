@@ -45,10 +45,11 @@ curl --location 'http://localhost:8001/executions' \
 }'
 ```
 
-Add logs to the workflow if you want to 3. Wait ~10s to complete the 5s of sleep 4. Trigger an order created signal by running the following command in your terminal
+> Save the `id` from the returned payload
+> Add logs to the workflow if you want to 3. Wait ~10s to complete the 5s of sleep 4. Trigger an order created signal by running the following command in your terminal
 
 ```sh
-curl --location 'http://localhost:8001/executions/20164981-fa0a-4076-afeb-56fd585ba1c5/signals/order_created' \
+curl --location 'http://localhost:8001/executions/$ID/signals/order_created' \
 --header 'Content-Type: application/json' \
 --data '{
     "id": "10291309213"
@@ -58,11 +59,11 @@ curl --location 'http://localhost:8001/executions/20164981-fa0a-4076-afeb-56fd58
 You can get the event history by running the following command,
 
 ```sh
-curl --location 'http://localhost:8001/executions/20164981-fa0a-4076-afeb-56fd585ba1c5/history'
+curl --location 'http://localhost:8001/executions/$ID/history'
 ```
 
 And the workflow result by running
 
 ```sh
-curl --location 'http://localhost:8001/executions/20164981-fa0a-4076-afeb-56fd585ba1c5'
+curl --location 'http://localhost:8001/executions/$ID'
 ```

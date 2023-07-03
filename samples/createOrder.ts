@@ -25,6 +25,8 @@ export default function* createOrder(
   _orderForm: OrderForm,
 ) {
   yield* sumWithDelayWorkflow(ctx);
+  console.log("RUNNING 1");
   const orderCreated: Order = yield ctx.waitForSignal("order_created");
+  console.log("RUNNING 2");
   return { id: orderCreated.id };
 }
