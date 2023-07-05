@@ -52,7 +52,7 @@ export const start = async (db?: DB, _registry?: WorkflowRegistry) => {
         if (execution === undefined) {
           return Response.json({}, { status: 403 }); // do not expose not found errors.
         }
-        await registry.verifySignature(id, _req);
+        await registry.verifySignature(execution.alias, _req);
         return Response.json(execution);
       },
       "GET@/executions/:id/history": async (req, _, { id }) => {
