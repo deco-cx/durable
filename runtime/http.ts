@@ -41,6 +41,9 @@ export const http = <
                 );
               }
               return msg;
+            }).catch((err) => {
+              console.log("err", err);
+              throw err;
             });
           },
         },

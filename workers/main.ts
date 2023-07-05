@@ -161,12 +161,13 @@ const workflowHandler =
 
 const run = async (
   db: DB,
+  registry: WorkflowRegistry,
   { cancellation, concurrency }: HandlerOpts,
 ) => {
   const workerCount = concurrency ?? 1;
   const q = new Queue<WorkItem<string>>(workerCount);
   await startWorkers(
-    workflowHandler(db, await buildWorkflowRegistry()),
+    workflowHandler(db, registry),
     executionsGenerator(
       db,
       () => workerCount - q.qsize(),
@@ -177,7 +178,7 @@ const run = async (
   );
 };
 
-export const start = async (db?: DB) => {
+export const start = async (db?: DB, registry?: WorkflowRegistry) => {
   const WORKER_COUNT = tryParseInt(Deno.env.get("WORKERS_COUNT")) ?? 10;
   const cancellation = new Event();
   Deno.addSignalListener("SIGINT", () => {
@@ -188,7 +189,7 @@ export const start = async (db?: DB) => {
     cancellation.set();
   });
 
-  await run(db ?? await postgres(), {
+  await run(db ?? await postgres(), registry ?? await buildWorkflowRegistry(), {
     cancellation,
     concurrency: WORKER_COUNT,
   });

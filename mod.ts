@@ -11,6 +11,7 @@ export type {
   InvokeHttpEndpointCommand,
 } from "./runtime/core/commands.ts";
 export type { WorkflowGen } from "./runtime/core/workflow.ts";
+export { signedFetch } from "./security/fetch.ts";
 export {
   fetchPublicKey,
   InvalidSignatureError,
@@ -18,6 +19,7 @@ export {
   verifySignature,
   wellKnownJWKSHandler,
 } from "./security/identity.ts";
+export { importJWK, importJWKFromString } from "./security/keys.ts";
 export type { Arg } from "./types.ts";
 export {
   DEBUG_ENABLED,

@@ -199,7 +199,7 @@ const delegated = async (
 };
 
 const invoke_http_endpoint = async (
-  { headers, url, method, body }: InvokeHttpEndpointCommand,
+  { headers, url, method, body, responseFormat }: InvokeHttpEndpointCommand,
 ): Promise<HistoryEvent[]> => {
   const resp = await signedFetch(url, {
     headers,
@@ -223,11 +223,14 @@ const invoke_http_endpoint = async (
         return "";
       });
     }
+  } else {
+    respBody = await resp.text();
   }
 
   return [{
     ...newEvent(),
     url,
+    responseFormat,
     type: "invoke_http_response",
     body: respBody, // FIXME(mcandeia) should we format other type of http formats?
     status: resp.status,
