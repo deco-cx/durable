@@ -1,61 +1,84 @@
-import { deferred } from "std/async/deferred.ts";
+import { Event, Queue } from "https://deno.land/x/async@v1.2.0/mod.ts";
+import { RunRequest } from "../handler.ts";
 import { Workflow, WorkflowContext } from "../mod.ts";
-import { HttpWorkflowRuntimeRef } from "../registry/registries.ts";
-import { signedFetch } from "../security/fetch.ts";
+import { WebSocketWorkflowRuntimeRef } from "../registry/registries.ts";
 import { Arg } from "../types.ts";
+import { Command } from "./core/commands.ts";
 import { WorkflowGen } from "./core/workflow.ts";
 
+interface Channel<Send, Recv> {
+  send: (data: Send) => Promise<Recv>;
+  closed: Event;
+}
+export const asChannel = async <Send, Recv>(
+  socket: WebSocket,
+): Promise<Channel<Send, Recv>> => {
+  const ready = new Event();
+  const recv = new Queue<Recv>(1);
+  const closed = new Event();
+  socket.addEventListener("open", () => {
+    ready.set();
+  });
+  socket.addEventListener("close", () => {
+    closed.set();
+  });
+  socket.addEventListener("message", (event) => {
+    recv.put(JSON.parse(event.data));
+  });
+
+  await Promise.race([ready.wait(), closed.wait()]);
+  return {
+    send: (data: Send) => {
+      socket.send(JSON.stringify(data));
+      return recv.get();
+    },
+    closed,
+  };
+};
 export const websocket = <
   TArgs extends Arg = Arg,
   TResult = unknown,
   TCtx extends WorkflowContext = WorkflowContext,
 >(
-  { url }: Pick<HttpWorkflowRuntimeRef, "url">,
+  { url }: Pick<WebSocketWorkflowRuntimeRef, "url">,
 ): Workflow<TArgs, TResult, TCtx> => {
-  return function* (
+  const socket = new WebSocket(url);
+  const channelPromise = asChannel<RunRequest, Command>(socket);
+  const workflowFunc: Workflow<TArgs, TResult, TCtx> = function* (
     ctx: TCtx,
     ...args: [...TArgs]
   ): WorkflowGen<TResult> {
-    const socket = new WebSocket(url);
-    const waitToBeReady = deferred();
-    socket.addEventListener("open", () => {
-      waitToBeReady.resolve();
-    });
-
     const commandResults: unknown[] = [args];
     while (true) {
       commandResults.push(
         yield {
           name: "delegated",
           getCmd: async () => {
-            await waitToBeReady;
-            return await signedFetch(url, {
-              method: "POST",
-              headers: {
-                "content-type": "application/json",
-              },
-              body: JSON.stringify({
-                results: commandResults,
+            const channel = await channelPromise;
+            if (channel.closed.is_set()) {
+              throw new Error(
+                "channel was closed before message is transmitted",
+              );
+            }
+            const cmd = await Promise.race([
+              channel.send({
+                results: commandResults as RunRequest["results"],
                 executionId: ctx.executionId,
-                metadata: ctx.metadata,
+                metadata: ctx.metadata!,
               }),
-            }).then(async (resp) => {
-              const msg = await resp.json();
-              if (resp.status >= 400) {
-                throw new Error(
-                  `error when fetching new command ${resp.status} ${
-                    JSON.stringify(msg)
-                  }`,
-                );
-              }
-              return msg;
-            }).catch((err) => {
-              console.log("err", err);
-              throw err;
-            });
+              channel.closed.wait(),
+            ]);
+            if (cmd === true) {
+              throw new Error(
+                "channel was closed before message is transmitted",
+              );
+            }
+            return cmd;
           },
         },
       );
     }
   };
+  workflowFunc.dispose = () => socket.close();
+  return workflowFunc;
 };

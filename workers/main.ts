@@ -89,73 +89,79 @@ const workflowHandler =
         throw new Error("workflow not found");
       }
 
-      const [history, pendingEvents] = await Promise.all([
-        executionDB.history.get(),
-        executionDB.pending.get(),
-      ]);
+      try {
+        const [history, pendingEvents] = await Promise.all([
+          executionDB.history.get(),
+          executionDB.pending.get(),
+        ]);
 
-      const ctx = new WorkflowContext(executionId, maybeInstance.metadata);
-      const workflowFn: WorkflowGenFn<TArgs, TResult> = (
-        ...args: [...TArgs]
-      ): WorkflowGen<TResult> => {
-        return workflow(ctx, ...args);
-      };
+        const ctx = new WorkflowContext(executionId, maybeInstance.metadata);
+        const workflowFn: WorkflowGenFn<TArgs, TResult> = (
+          ...args: [...TArgs]
+        ): WorkflowGen<TResult> => {
+          return workflow(ctx, ...args);
+        };
 
-      let state: WorkflowState<TArgs, TResult> = [
-        ...history,
-        ...pendingEvents,
-      ].reduce(apply, zeroState(workflowFn));
+        let state: WorkflowState<TArgs, TResult> = [
+          ...history,
+          ...pendingEvents,
+        ].reduce(apply, zeroState(workflowFn));
 
-      const asPendingEvents: HistoryEvent[] = [];
-      while (
-        state.canceledAt === undefined &&
-        !state.hasFinished &&
-        !state.current.isReplaying
-      ) {
-        const newEvents = await handleCommand(state.current, state);
-        if (newEvents.length === 0) {
-          break;
-        }
-        for (const newEvent of newEvents) {
-          if (newEvent.visibleAt === undefined) {
-            state = apply(state, newEvent);
-            pendingEvents.push(newEvent);
-            if (
-              state.canceledAt === undefined &&
-              !state.hasFinished &&
-              !state.current.isReplaying
-            ) {
-              break;
+        const asPendingEvents: HistoryEvent[] = [];
+        while (
+          state.canceledAt === undefined &&
+          !state.hasFinished &&
+          !state.current.isReplaying
+        ) {
+          const newEvents = await handleCommand(state.current, state);
+          if (newEvents.length === 0) {
+            break;
+          }
+          for (const newEvent of newEvents) {
+            if (newEvent.visibleAt === undefined) {
+              state = apply(state, newEvent);
+              pendingEvents.push(newEvent);
+              if (
+                state.canceledAt === undefined &&
+                !state.hasFinished &&
+                !state.current.isReplaying
+              ) {
+                break;
+              }
+            } else {
+              asPendingEvents.push(newEvent);
             }
-          } else {
-            asPendingEvents.push(newEvent);
           }
         }
+
+        let lastSeq = history.length === 0
+          ? 0
+          : history[history.length - 1].seq;
+
+        const opts: Promise<void>[] = [
+          executionDB.pending.del(...pendingEvents),
+          executionDB.history.add(
+            ...pendingEvents.map((event) => ({ ...event, seq: ++lastSeq })),
+          ),
+        ];
+
+        if (asPendingEvents.length !== 0) {
+          opts.push(executionDB.pending.add(...asPendingEvents));
+        }
+
+        opts.push(
+          executionDB.update({
+            ...maybeInstance,
+            status: state.status,
+            output: state.output,
+            completedAt: state.hasFinished ? new Date() : undefined,
+          }),
+        );
+
+        await Promise.all(opts);
+      } finally {
+        workflow?.dispose?.();
       }
-
-      let lastSeq = history.length === 0 ? 0 : history[history.length - 1].seq;
-
-      const opts: Promise<void>[] = [
-        executionDB.pending.del(...pendingEvents),
-        executionDB.history.add(
-          ...pendingEvents.map((event) => ({ ...event, seq: ++lastSeq })),
-        ),
-      ];
-
-      if (asPendingEvents.length !== 0) {
-        opts.push(executionDB.pending.add(...asPendingEvents));
-      }
-
-      opts.push(
-        executionDB.update({
-          ...maybeInstance,
-          status: state.status,
-          output: state.output,
-          completedAt: state.hasFinished ? new Date() : undefined,
-        }),
-      );
-
-      await Promise.all(opts);
     });
   };
 
