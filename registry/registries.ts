@@ -35,9 +35,15 @@ export interface HttpWorkflowRuntimeRef extends WorkflowRuntimeRefBase {
   url: string;
 }
 
+export interface WebSocketWorkflowRuntimeRef extends WorkflowRuntimeRefBase {
+  type: "websocket";
+  url: string;
+}
+
 export type WorkflowRuntimeRef =
   | DenoWorkflowRuntimeRef
-  | HttpWorkflowRuntimeRef;
+  | HttpWorkflowRuntimeRef
+  | WebSocketWorkflowRuntimeRef;
 
 export interface RegistryBase {
   type: string;
