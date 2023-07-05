@@ -41,6 +41,7 @@ export type ActivityExecutor<TArgs extends Arg, TResult> = (
   ...args: [...TArgs]
 ) => ActivityResult<TResult>;
 
+// deno-lint-ignore no-empty-interface
 export interface Metadata {
 }
 
@@ -94,8 +95,14 @@ export class WorkflowContext<TMetadata extends Metadata = Metadata> {
       headers?: Record<string, string>;
       method?: string;
     },
+    format?: InvokeHttpEndpointCommand["responseFormat"],
   ): InvokeHttpEndpointCommand<TBody> {
-    return { name: "invoke_http_endpoint", url, ...options };
+    return {
+      name: "invoke_http_endpoint",
+      url,
+      ...options,
+      responseFormat: format,
+    };
   }
 
   /**
