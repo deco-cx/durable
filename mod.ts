@@ -11,6 +11,8 @@ export type {
   InvokeHttpEndpointCommand,
 } from "./runtime/core/commands.ts";
 export type { WorkflowGen } from "./runtime/core/workflow.ts";
+export { asChannel } from "./runtime/websocket.ts";
+export type { Channel } from "./runtime/websocket.ts";
 export { signedFetch } from "./security/fetch.ts";
 export {
   fetchPublicKey,
@@ -28,7 +30,6 @@ export {
   WorkflowContext,
   workflowHTTPHandler,
 };
-
 const DEBUG_ENABLED = typeof Deno === "undefined"
   ? false
   : tryParseBool(Deno.env.get("ENABLE_DEBUG")) ??

@@ -6,6 +6,7 @@ import { PromiseOrValue } from "../promise.ts";
 import { runtimeBuilder } from "../runtime/builders.ts";
 import { deno } from "../runtime/deno.ts";
 import { http as httpRuntime } from "../runtime/http.ts";
+import { websocket as websocketRuntime } from "../runtime/websocket.ts";
 import { verifySignature } from "../security/identity.ts";
 import { parseJWK } from "../security/keys.ts";
 import { Arg } from "../types.ts";
@@ -63,12 +64,21 @@ export interface HttpRegistry extends RegistryBase {
   baseUrl: string | ((alias: string) => string);
 }
 
+export interface WebSocketRegistry extends RegistryBase {
+  type: "websocket";
+  baseUrl: string | ((alias: string) => string);
+}
+
 export interface InlineRegistry extends RegistryBase {
   type: "inline";
   ref: WorkflowRuntimeRef;
 }
 
-export type Registry = GithubRegistry | HttpRegistry | InlineRegistry;
+export type Registry =
+  | GithubRegistry
+  | HttpRegistry
+  | InlineRegistry
+  | WebSocketRegistry;
 
 export type GenericWorkflow = Workflow<any, any, any>;
 export type WorkflowInfo = {
@@ -85,6 +95,15 @@ const sanitize = (str: string) => (str.startsWith("/") ? str : `/${str}`);
 const http =
   ({ baseUrl }: HttpRegistry) => (alias: string): GenericWorkflow => {
     return httpRuntime({
+      url: typeof baseUrl === "function"
+        ? baseUrl(alias)
+        : `${baseUrl}${sanitize(alias)}`,
+    });
+  };
+
+const websocket =
+  ({ baseUrl }: HttpRegistry) => (alias: string): GenericWorkflow => {
+    return websocketRuntime({
       url: typeof baseUrl === "function"
         ? baseUrl(alias)
         : `${baseUrl}${sanitize(alias)}`,
@@ -111,6 +130,7 @@ const providers: Record<
   http,
   github,
   inline,
+  websocket,
 };
 
 const buildProvider = (registry: Registry) => {
@@ -139,7 +159,7 @@ const buildAll = (
   );
 };
 const TRUSTED_REGISTRIES = Deno.env.get("TRUSTED_REGISTRIES_URL") ??
-  "https://raw.githubusercontent.com/mcandeia/trusted-registries/67cf3bf02979e5801c4c11db6969b1ab34632466/registries.ts";
+  "https://raw.githubusercontent.com/mcandeia/trusted-registries/c1e1126cc4d7b5682928eb2cfd804315ed31804f/registries.ts";
 
 const fetchTrusted = async (): Promise<
   Record<string, Registry>

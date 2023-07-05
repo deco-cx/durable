@@ -6,8 +6,9 @@ import { Arg } from "../types.ts";
 import { Command } from "./core/commands.ts";
 import { WorkflowGen } from "./core/workflow.ts";
 
-interface Channel<Send, Recv> {
-  send: (data: Send) => Promise<Recv>;
+export interface Channel<Send, Recv> {
+  send: (data: Send) => void;
+  recv: () => Promise<Recv>;
   closed: Event;
 }
 export const asChannel = async <Send, Recv>(
@@ -30,8 +31,8 @@ export const asChannel = async <Send, Recv>(
   return {
     send: (data: Send) => {
       socket.send(JSON.stringify(data));
-      return recv.get();
     },
+    recv: () => recv.get(),
     closed,
   };
 };
@@ -60,12 +61,13 @@ export const websocket = <
                 "channel was closed before message is transmitted",
               );
             }
+            channel.send({
+              results: commandResults as RunRequest["results"],
+              executionId: ctx.executionId,
+              metadata: ctx.metadata!,
+            });
             const cmd = await Promise.race([
-              channel.send({
-                results: commandResults as RunRequest["results"],
-                executionId: ctx.executionId,
-                metadata: ctx.metadata!,
-              }),
+              channel.recv(),
               channel.closed.wait(),
             ]);
             if (cmd === true) {
