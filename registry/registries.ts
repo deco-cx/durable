@@ -6,6 +6,8 @@ import { PromiseOrValue } from "../promise.ts";
 import { runtimeBuilder } from "../runtime/builders.ts";
 import { deno } from "../runtime/deno.ts";
 import { http as httpRuntime } from "../runtime/http.ts";
+import { verifySignature } from "../security/identity.ts";
+import { parseJWK } from "../security/keys.ts";
 import { Arg } from "../types.ts";
 import { setIntervalFlight } from "../utils.ts";
 
@@ -17,6 +19,7 @@ export interface WorkflowRegistry {
   >(
     alias: string,
   ): PromiseOrValue<Workflow<TArgs, TResult, TCtx> | undefined>;
+  verifySignature: (alias: string, req: Request) => Promise<void>;
 }
 export interface WorkflowRuntimeRefBase {
   type: string;
@@ -38,6 +41,7 @@ export type WorkflowRuntimeRef =
 
 export interface RegistryBase {
   type: string;
+  publicKey?: string;
 }
 
 export interface GithubRegistry extends RegistryBase {
@@ -61,6 +65,10 @@ export interface InlineRegistry extends RegistryBase {
 export type Registry = GithubRegistry | HttpRegistry | InlineRegistry;
 
 export type GenericWorkflow = Workflow<any, any, any>;
+export type WorkflowInfo = {
+  creator: (alias: string) => PromiseOrValue<GenericWorkflow>;
+  publicKey?: string;
+};
 const inline = ({ ref }: InlineRegistry) => {
   const runtimePromise = runtimeBuilder[ref.type](ref);
   return (_: string) => {
@@ -105,16 +113,20 @@ const buildProvider = (registry: Registry) => {
 
 const buildAll = (
   registries: Record<string, Registry>,
-): Record<string, (alias: string) => PromiseOrValue<GenericWorkflow>> => {
+): Record<string, WorkflowInfo> => {
   return Object.keys(registries).reduce(
     (
       result: Record<
         string,
-        (alias: string) => PromiseOrValue<GenericWorkflow>
+        WorkflowInfo
       >,
       key,
     ) => {
-      result[key] = buildProvider(registries[key]);
+      const workflow = registries[key];
+      result[key] = {
+        creator: buildProvider(workflow),
+        publicKey: workflow.publicKey,
+      };
       return result;
     },
     {},
@@ -137,7 +149,7 @@ const fetchTrusted = async (): Promise<
 };
 
 const REBUILD_TRUSTED_INTERVAL_MS = 1 * MINUTE;
-export const buildWorkflowRegistry = async () => {
+export const buildWorkflowRegistry = async (): Promise<WorkflowRegistry> => {
   const trustedRegistries = await fetchTrusted();
   let current = buildAll(trustedRegistries);
   setIntervalFlight(async () => {
@@ -145,6 +157,7 @@ export const buildWorkflowRegistry = async () => {
       current = buildAll(trusted);
     });
   }, REBUILD_TRUSTED_INTERVAL_MS);
+
   return {
     get: async (alias: string) => {
       const [namespace, ...names] = alias.split(".");
@@ -154,7 +167,17 @@ export const buildWorkflowRegistry = async () => {
       if (loadRuntime === undefined) {
         return undefined;
       }
-      return await loadRuntime(names.join("."));
+      return await loadRuntime.creator(names.join("."));
+    },
+    verifySignature: async (alias: string, req: Request) => {
+      const [namespace] = alias.split(".");
+      const loadRuntime = namespace.length === 0
+        ? current[alias]
+        : current[namespace];
+      if (!loadRuntime.publicKey) {
+        return;
+      }
+      await verifySignature(req, parseJWK(loadRuntime.publicKey!));
     },
   };
 };

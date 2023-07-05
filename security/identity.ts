@@ -2,7 +2,8 @@ import {
   decode,
   encode,
 } from "https://deno.land/std@0.186.0/encoding/base64.ts";
-import { alg, getKeyPair, hash } from "./keys.ts";
+import { PromiseOrValue } from "../promise.ts";
+import { alg, getKeyPair, hash, importJWK } from "./keys.ts";
 
 const sigName = "sig1";
 
@@ -10,13 +11,7 @@ let pkCrypto: null | Promise<CryptoKey> = null;
 
 const getPkCrypto = async () => {
   const [_, privateKey] = await getKeyPair();
-  pkCrypto ??= crypto.subtle.importKey(
-    "jwk",
-    privateKey,
-    { name: alg, hash },
-    true,
-    ["sign"],
-  );
+  pkCrypto ??= importJWK(privateKey);
   return await pkCrypto;
 };
 
@@ -93,7 +88,10 @@ const signatureParams = [
 ];
 
 // Sign requests using the private key
-export const signRequest = async (req: Request): Promise<Request> => {
+export const signRequestWith = async (
+  req: Request,
+  pkCrypto: PromiseOrValue<CryptoKey>,
+): Promise<Request> => {
   const now = Date.now();
   if (!req.headers.has("date")) {
     req.headers.set("date", new Date(now).toISOString());
@@ -112,7 +110,7 @@ export const signRequest = async (req: Request): Promise<Request> => {
       hash,
       new TextEncoder().encode(data),
     ),
-    getPkCrypto(),
+    pkCrypto,
   ]);
   const signature = await crypto.subtle.sign(
     {
@@ -128,6 +126,14 @@ export const signRequest = async (req: Request): Promise<Request> => {
   );
 
   return req;
+};
+
+// Sign requests using the private key
+export const signRequest = (
+  req: Request,
+  key?: PromiseOrValue<CryptoKey>,
+): Promise<Request> => {
+  return signRequestWith(req, key ?? getPkCrypto());
 };
 
 export interface SignatureInput {
@@ -159,13 +165,7 @@ export const verifySignature = async (
   const signatureBuffer = decode(signature);
 
   // import key from /.well_known endpoint
-  const pk = await crypto.subtle.importKey(
-    "jwk",
-    await key,
-    { name: alg, hash },
-    true,
-    ["verify"],
-  );
+  const pk = await importJWK(await key, ["verify"]);
   const verified = await crypto.subtle.verify(
     {
       name: alg,

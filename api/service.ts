@@ -1,6 +1,7 @@
 import { v4 } from "https://deno.land/std@0.72.0/uuid/mod.ts";
 import { DB, WorkflowExecution } from "../backends/backend.ts";
 import { Metadata } from "../context.ts";
+import { WorkflowRegistry } from "../registry/registries.ts";
 import { HistoryEvent, newEvent } from "../runtime/core/events.ts";
 import { Arg } from "../types.ts";
 
@@ -21,7 +22,10 @@ export interface Pagination<T> {
 }
 
 export class WorkflowService {
-  constructor(protected backend: DB) {
+  constructor(
+    protected backend: DB,
+    protected registry: WorkflowRegistry,
+  ) {
   }
   /**
    * Cancel the workflow instance execution.

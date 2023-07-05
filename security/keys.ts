@@ -21,6 +21,28 @@ const generateKeyPair = async () => {
   ]);
 };
 
+export const parseJWK = (jwk: string): JsonWebKey => JSON.parse(atob(jwk));
+export const importJWK = (
+  jwk: JsonWebKey,
+  usages?: KeyUsage[],
+): Promise<CryptoKey> =>
+  crypto.subtle.importKey(
+    "jwk",
+    jwk,
+    { name: alg, hash },
+    true,
+    usages ?? ["sign"],
+  );
+
+export const importJWKFromString = (
+  jwk: string,
+  usages?: KeyUsage[],
+): Promise<CryptoKey> =>
+  importJWK(
+    parseJWK(jwk),
+    usages,
+  );
+
 const getOrGenerateKeyPair = async (): Promise<[JsonWebKey, JsonWebKey]> => {
   const publicKeyEnvValue = Deno.env.get(PUBLIC_KEY_ENV_VAR);
   const privateKeyEnvValue = Deno.env.get(PRIVATE_KEY_ENV_VAR);
@@ -28,8 +50,8 @@ const getOrGenerateKeyPair = async (): Promise<[JsonWebKey, JsonWebKey]> => {
     return await generateKeyPair();
   }
   return [
-    JSON.parse(atob(publicKeyEnvValue)),
-    JSON.parse(atob(privateKeyEnvValue)),
+    parseJWK(publicKeyEnvValue),
+    parseJWK(privateKeyEnvValue),
   ];
 };
 // Generate an RSA key pair
