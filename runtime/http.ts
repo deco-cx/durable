@@ -15,7 +15,7 @@ export const http = <
     ctx: TCtx,
     ...args: [...TArgs]
   ): WorkflowGen<TResult> {
-    const commandResults: unknown[] = [args];
+    const commandResults: unknown[] = [];
     while (true) {
       commandResults.push(
         yield {
@@ -27,6 +27,7 @@ export const http = <
                 "content-type": "application/json",
               },
               body: JSON.stringify({
+                input: args,
                 results: commandResults,
                 executionId: ctx.executionId,
                 metadata: ctx.metadata,
