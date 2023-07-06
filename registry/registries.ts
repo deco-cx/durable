@@ -159,7 +159,7 @@ const buildAll = (
   );
 };
 const TRUSTED_REGISTRIES = Deno.env.get("TRUSTED_REGISTRIES_URL") ??
-  "https://raw.githubusercontent.com/mcandeia/trusted-registries/959dad98cbed055426a6b00f1b588c2e3d78ac8e/registries.ts";
+  "https://raw.githubusercontent.com/mcandeia/trusted-registries/7dd8f5f8e8b0d5b376aa03425298c98850e3f239/registries.ts";
 
 const fetchTrusted = async (): Promise<
   Record<string, Registry>
