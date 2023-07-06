@@ -3,6 +3,7 @@ import {
   encode,
 } from "https://deno.land/std@0.186.0/encoding/base64.ts";
 import { PromiseOrValue } from "../promise.ts";
+import { ChannelEncryption } from "../runtime/websocket.ts";
 import { alg, getKeyPair, hash, importJWK } from "./keys.ts";
 
 const sigName = "sig1";
@@ -87,6 +88,84 @@ const signatureParams = [
   ...signatureHeaders.map((h) => `"${h}"`),
 ];
 
+export interface EncryptedMessage {
+  encoded: string;
+  encrypted: string;
+  data?: string;
+}
+const verifyMessageWith = async (
+  msg: EncryptedMessage,
+  key: PromiseOrValue<JsonWebKey>,
+) => {
+  return verifyMessage(msg, importJWK(await key, ["verify"]));
+};
+
+export interface VerifiedMessage {
+  encoded: string;
+  isValid: boolean;
+  data?: string;
+}
+export const verifyMessage = async (
+  { encoded: verifyAgainstHash, encrypted: signature, data }: EncryptedMessage,
+  pk: PromiseOrValue<CryptoKey>,
+): Promise<VerifiedMessage> => {
+  const dataHash = decode(verifyAgainstHash);
+
+  const signatureBuffer = decode(signature);
+
+  const verified = await crypto.subtle.verify(
+    {
+      name: alg,
+    },
+    await pk,
+    signatureBuffer,
+    dataHash,
+  );
+  return { isValid: verified, encoded: verifyAgainstHash, data };
+};
+
+const SEPARATOR = ".";
+export const encryptedMessage = {
+  fromString: (data: string): EncryptedMessage => {
+    const [encoded, encrypted, maybeData] = data.split(SEPARATOR);
+    return {
+      encoded,
+      encrypted,
+      data: maybeData ? atob(maybeData) : undefined,
+    };
+  },
+  toString: ({ encoded, encrypted, data }: EncryptedMessage): string => {
+    return `${encoded}${SEPARATOR}${encrypted}${
+      data ? `${SEPARATOR}${btoa(data)}` : ""
+    }`;
+  },
+};
+export const signMessage = async (
+  msg: string,
+  pkCrypto: PromiseOrValue<CryptoKey>,
+  includeData = false,
+): Promise<EncryptedMessage> => {
+  const [msgHash, pk] = await Promise.all([
+    crypto.subtle.digest(
+      hash,
+      new TextEncoder().encode(msg),
+    ),
+    pkCrypto,
+  ]);
+  const encrypted = await crypto.subtle.sign(
+    {
+      name: alg,
+    },
+    pk,
+    msgHash,
+  );
+
+  return {
+    ...(includeData ? { data: msg } : {}),
+    encoded: encode(new Uint8Array(msgHash)),
+    encrypted: encode(new Uint8Array(encrypted)),
+  };
+};
 // Sign requests using the private key
 export const signRequestWith = async (
   req: Request,
@@ -105,27 +184,24 @@ export const signRequestWith = async (
   );
 
   const data = buildReqSign(req);
-  const [dataHash, pk] = await Promise.all([
-    crypto.subtle.digest(
-      hash,
-      new TextEncoder().encode(data),
-    ),
-    pkCrypto,
-  ]);
-  const signature = await crypto.subtle.sign(
-    {
-      name: alg,
-    },
-    pk,
-    dataHash,
-  );
-  const encodedSignature = encode(new Uint8Array(signature));
+  const message = await signMessage(data, pkCrypto);
   req.headers.set(
     SIGNATURE_HEADER,
-    `${sigName}=:${encode(new Uint8Array(dataHash))}.${encodedSignature}:`,
+    `${sigName}=:${encryptedMessage.toString(message)}:`,
   );
 
   return req;
+};
+
+/**
+ * Returns the channel used to encrypt sends.
+ */
+export const channelEncryption = async (
+  key?: PromiseOrValue<CryptoKey>,
+): Promise<ChannelEncryption> => {
+  return {
+    sendPrivateKey: await (key ?? getPkCrypto()),
+  };
 };
 
 // Sign requests using the private key
@@ -158,21 +234,9 @@ export const verifySignature = async (
     throw new Error(`Something went wrong`); // do not expose that the signature is invalid
   }
   const { [sigName]: signAndData } = parseSignatureHeader(_signature);
-  const [verifyAgainstHash, signature] = signAndData.split(".");
-
-  const dataHash = decode(verifyAgainstHash);
-
-  const signatureBuffer = decode(signature);
-
-  // import key from /.well_known endpoint
-  const pk = await importJWK(await key, ["verify"]);
-  const verified = await crypto.subtle.verify(
-    {
-      name: alg,
-    },
-    pk,
-    signatureBuffer,
-    dataHash,
+  const verified = await verifyMessageWith(
+    encryptedMessage.fromString(signAndData),
+    key,
   );
   if (!verified) {
     throw new InvalidSignatureError(); // do not expose that the signature is invalid

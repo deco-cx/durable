@@ -12,15 +12,19 @@ export type {
 } from "./runtime/core/commands.ts";
 export type { WorkflowGen } from "./runtime/core/workflow.ts";
 export { asChannel } from "./runtime/websocket.ts";
-export type { Channel } from "./runtime/websocket.ts";
+export type { Channel, ChannelEncryption } from "./runtime/websocket.ts";
+export { asEncryptedChannel, asVerifiedChannel } from "./security/channel.ts";
 export { signedFetch } from "./security/fetch.ts";
 export {
   fetchPublicKey,
   InvalidSignatureError,
+  signMessage,
   signRequest,
+  verifyMessage,
   verifySignature,
   wellKnownJWKSHandler,
 } from "./security/identity.ts";
+export type { EncryptedMessage, VerifiedMessage } from "./security/identity.ts";
 export { importJWK, importJWKFromString } from "./security/keys.ts";
 export type { Arg } from "./types.ts";
 export {
