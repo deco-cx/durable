@@ -3,7 +3,7 @@ import {
   encode,
 } from "https://deno.land/std@0.186.0/encoding/base64.ts";
 import { PromiseOrValue } from "../promise.ts";
-import { ChannelEncryption } from "../runtime/websocket.ts";
+import { ChannelEncryption } from "./channel.ts";
 import { alg, getKeyPair, hash, importJWK } from "./keys.ts";
 
 const sigName = "sig1";
@@ -112,6 +112,9 @@ export const verifyMessage = async (
   const dataHash = decode(verifyAgainstHash);
 
   const signatureBuffer = decode(signature);
+  const encodedData = data
+    ? stringToBase64SHA256(data)
+    : Promise.resolve(verifyAgainstHash);
 
   const verified = await crypto.subtle.verify(
     {
@@ -121,7 +124,11 @@ export const verifyMessage = async (
     signatureBuffer,
     dataHash,
   );
-  return { isValid: verified, encoded: verifyAgainstHash, data };
+  return {
+    isValid: verified && (await encodedData) === verifyAgainstHash,
+    encoded: verifyAgainstHash,
+    data,
+  };
 };
 
 const SEPARATOR = ".";
@@ -140,16 +147,30 @@ export const encryptedMessage = {
     }`;
   },
 };
+
+const stringToSHA256 = (txt: string) => {
+  return crypto.subtle.digest(
+    hash,
+    new TextEncoder().encode(txt),
+  );
+};
+
+/**
+ * Encode a given message to string.
+ */
+export const stringToBase64SHA256 = async (txt: string) => {
+  return await stringToSHA256(txt).then((encoded) =>
+    encode(new Uint8Array(encoded))
+  );
+};
+
 export const signMessage = async (
   msg: string,
   pkCrypto: PromiseOrValue<CryptoKey>,
   includeData = false,
 ): Promise<EncryptedMessage> => {
   const [msgHash, pk] = await Promise.all([
-    crypto.subtle.digest(
-      hash,
-      new TextEncoder().encode(msg),
-    ),
+    stringToSHA256(msg),
     pkCrypto,
   ]);
   const encrypted = await crypto.subtle.sign(

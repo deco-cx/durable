@@ -29,7 +29,12 @@ export const start = async (db?: DB, _registry?: WorkflowRegistry) => {
       delete aliasCache[id];
       return false;
     }
-    await registry.verifySignature(alias, req);
+    try {
+      await registry.verifySignature(alias, req);
+    } catch (err) {
+      console.error(err);
+      return false;
+    }
     return true;
   };
   return await serve(

@@ -11,15 +11,19 @@ export type {
   InvokeHttpEndpointCommand,
 } from "./runtime/core/commands.ts";
 export type { WorkflowGen } from "./runtime/core/workflow.ts";
-export { asChannel } from "./runtime/websocket.ts";
-export type { Channel, ChannelEncryption } from "./runtime/websocket.ts";
-export { asEncryptedChannel, asVerifiedChannel } from "./security/channel.ts";
+export {
+  asChannel,
+  asEncryptedChannel,
+  asVerifiedChannel,
+} from "./security/channel.ts";
+export type { Channel, ChannelEncryption } from "./security/channel.ts";
 export { signedFetch } from "./security/fetch.ts";
 export {
   fetchPublicKey,
   InvalidSignatureError,
   signMessage,
   signRequest,
+  stringToBase64SHA256,
   verifyMessage,
   verifySignature,
   wellKnownJWKSHandler,
