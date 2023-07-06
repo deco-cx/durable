@@ -35,7 +35,10 @@ export type Workflow<
   TArgs extends Arg = Arg,
   TResp = unknown,
   TCtx extends WorkflowContext = WorkflowContext,
-> = (
-  ctx: TCtx,
-  ...args: [...TArgs]
-) => WorkflowGen<TResp>;
+> = {
+  dispose?: () => void;
+  (
+    ctx: TCtx,
+    ...args: [...TArgs]
+  ): WorkflowGen<TResp>;
+};
