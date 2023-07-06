@@ -1,11 +1,16 @@
 import { WorkflowContext } from "./context.ts";
-import { useWorkflowRoutes, workflowHTTPHandler } from "./handler.ts";
+import {
+  arrToStream,
+  useWorkflowRoutes,
+  workflowHTTPHandler,
+  workflowWebSocketHandler,
+} from "./handler.ts";
 import type { Workflow } from "./runtime/core/workflow.ts";
 import { tryParseBool } from "./utils.ts";
 export type { WorkflowExecution } from "./backends/backend.ts";
 export type { Metadata } from "./context.ts";
 export { workflowRemoteRunner } from "./handler.ts";
-export type { RunRequest } from "./handler.ts";
+export type { HttpRunRequest } from "./handler.ts";
 export type {
   Command,
   InvokeHttpEndpointCommand,
@@ -32,11 +37,13 @@ export type { EncryptedMessage, VerifiedMessage } from "./security/identity.ts";
 export { importJWK, importJWKFromString } from "./security/keys.ts";
 export type { Arg } from "./types.ts";
 export {
+  arrToStream,
   DEBUG_ENABLED,
   useWorkflowRoutes,
   Workflow,
   WorkflowContext,
   workflowHTTPHandler,
+  workflowWebSocketHandler,
 };
 const DEBUG_ENABLED = typeof Deno === "undefined"
   ? false

@@ -54,7 +54,7 @@ export const asChannel = async <Send, Recv>(
 ): Promise<Channel<Send, Recv>> => {
   const { sign, verify } = useChannelEncryption(encryption);
   const ready = new Event();
-  const recv = new Queue<string>(1);
+  const recv = new Queue<string>();
   const closed = new Event();
   socket.addEventListener("open", () => {
     ready.set();
@@ -71,7 +71,9 @@ export const asChannel = async <Send, Recv>(
     send: async (data: Send) => {
       const stringifiedData = JSON.stringify(data);
       await sign(stringifiedData).then((signed) => {
-        socket.send(signed);
+        if (!closed.is_set()) {
+          socket.send(signed);
+        }
       });
     },
     recv: async () => {

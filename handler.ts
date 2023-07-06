@@ -2,20 +2,68 @@
 import { Handler } from "https://deno.land/std@0.173.0/http/server.ts";
 import { router, Routes } from "https://deno.land/x/rutt@0.0.14/mod.ts";
 import { Metadata } from "./context.ts";
-import { WorkflowContext } from "./mod.ts";
+import { asVerifiedChannel, Channel, WorkflowContext } from "./mod.ts";
+import { PromiseOrValue } from "./promise.ts";
 import { Command } from "./runtime/core/commands.ts";
 import { Workflow } from "./runtime/core/workflow.ts";
 import { verifySignature } from "./security/identity.ts";
 import { Arg } from "./types.ts";
 
+export interface WebSocketRunRequest<
+  TArgs extends Arg = Arg,
+  TMetadata extends Metadata = Metadata,
+> {
+  input: [...TArgs];
+  executionId: string;
+  metadata: TMetadata;
+}
+
+export const isWebSocketRunReq = <
+  TArgs extends Arg = Arg,
+  TMetadata extends Metadata = Metadata,
+>(
+  value: unknown | WebSocketRunRequest<TArgs, TMetadata>,
+): value is WebSocketRunRequest<TArgs, TMetadata> => {
+  return Array.isArray((value as WebSocketRunRequest)?.input) &&
+    typeof (value as WebSocketRunRequest).executionId === "string";
+};
+
+export interface HttpRunRequest<
+  TArgs extends Arg = Arg,
+  TMetadata extends Metadata = Metadata,
+> {
+  input: [...TArgs];
+  results: unknown[];
+  executionId: string;
+  metadata: TMetadata;
+}
+
 export interface RunRequest<
   TArgs extends Arg = Arg,
   TMetadata extends Metadata = Metadata,
 > {
-  results: [[...TArgs], unknown];
+  input: [...TArgs];
+  events: EventStream;
   executionId: string;
   metadata: TMetadata;
 }
+
+export const arrToStream = (
+  arr: unknown[],
+): EventStream & { nextCommand: Command } => {
+  let current = 0;
+  let nextCommand: Command = undefined!;
+  return {
+    send: (_cmd: Command) => {
+      if (current === arr.length) {
+        nextCommand = _cmd;
+        return Promise.resolve({ isClosed: true });
+      }
+      return Promise.resolve(arr[current++]);
+    },
+    nextCommand,
+  };
+};
 
 /**
  * Exposes a workflow function as a runner.
@@ -30,9 +78,9 @@ export const workflowRemoteRunner = <
 >(
   workflow: Workflow<TArgs, TResult, TCtx>,
   Context: new (executionId: string, metadata?: TMetadata) => TCtx,
-): (req: RunRequest<TArgs, TMetadata>) => Command => {
-  return function (
-    { results: [input, ...results], executionId, metadata }: RunRequest<
+): (req: RunRequest<TArgs, TMetadata>) => Promise<void> => {
+  return async function (
+    { events, input, executionId, metadata }: RunRequest<
       TArgs,
       TMetadata
     >,
@@ -41,18 +89,20 @@ export const workflowRemoteRunner = <
 
     const genFn = workflow(ctx, ...input);
     let cmd = genFn.next();
-    for (const result of results) {
-      if (cmd.done) {
+    while (!cmd.done) {
+      const event = await events.send(cmd.value);
+      if ((event as { isClosed: true })?.isClosed) {
         break;
       }
-      cmd = genFn.next(result);
+      cmd = genFn.next(event);
     }
 
     if (cmd.done) {
-      return { name: "finish_workflow", result: cmd.value };
+      await events.send({ name: "finish_workflow", result: cmd.value });
+      return;
     }
 
-    return cmd.value;
+    await events.send(cmd.value);
   };
 };
 
@@ -77,8 +127,13 @@ export const workflowHTTPHandler = <
       verifySignature(req, workerPublicKey);
     }
     const runReq = await req
-      .json() as RunRequest<TArgs, TMetadata>;
-    return Response.json(runner(runReq));
+      .json() as HttpRunRequest<TArgs, TMetadata>;
+
+    const stream = arrToStream(runReq.results);
+    await runner({ ...runReq, events: stream });
+    return Response.json(
+      stream.nextCommand,
+    );
   };
 };
 
@@ -114,4 +169,68 @@ export const useWorkflowRoutes = (
     };
   }
   return router(routes);
+};
+
+export interface EventStream {
+  send: (cmd: Command) => Promise<unknown | { isClosed: true }>;
+}
+const useChannel =
+  <TArgs extends Arg = Arg, TMetadata extends Metadata = Metadata>(
+    runner: (req: RunRequest<TArgs, TMetadata>) => Promise<void>,
+  ) =>
+  async (chan: Channel<Command, unknown | WebSocketRunRequest>) => {
+    const runReq = await chan.recv();
+    if (!isWebSocketRunReq<TArgs, TMetadata>(runReq)) {
+      throw new Error(`received unexpected message ${JSON.stringify(runReq)}`);
+    }
+    const events: EventStream = {
+      send: async (cmd: Command) => {
+        const closed = await Promise.race([chan.closed.wait(), chan.send(cmd)]);
+        if (closed === true) {
+          return { isClosed: true };
+        }
+        const event = await Promise.race([chan.recv(), chan.closed.wait()]);
+        if (event === true) {
+          return { isClosed: true };
+        }
+        return event;
+      },
+    };
+    await runner({ ...runReq, events });
+  };
+/**
+ * Exposes a workflow function as a http websocket handler.
+ * @param workflow the workflow function
+ * @returns a http handler
+ */
+export const workflowWebSocketHandler = <
+  TArgs extends Arg = Arg,
+  TResult = unknown,
+  TCtx extends WorkflowContext = WorkflowContext,
+  TMetadata extends Metadata = Metadata,
+>(
+  workflow: Workflow<TArgs, TResult, TCtx>,
+  Context: new (executionId: string, metadata?: TMetadata) => TCtx,
+  workerPublicKey: PromiseOrValue<JsonWebKey>,
+): Handler => {
+  const runner = workflowRemoteRunner<TArgs, TResult, TCtx, TMetadata>(
+    workflow,
+    Context,
+  );
+  return function (req) {
+    if (req.headers.get("upgrade") !== "websocket") {
+      return new Response(null, { status: 501 });
+    }
+    const { socket, response } = Deno.upgradeWebSocket(req);
+
+    asVerifiedChannel<Command, unknown>(
+      socket,
+      workerPublicKey,
+    ).then(useChannel(runner)).catch((err) => {
+      console.log("socket err", err);
+      socket.close();
+    });
+
+    return response;
+  };
 };
