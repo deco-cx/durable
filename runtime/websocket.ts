@@ -22,7 +22,6 @@ export const websocket = <
     ctx: TCtx,
     ...args: [...TArgs]
   ): WorkflowGen<TResult> {
-    let currentEvent: unknown = null;
     const initializedChannel = channelPromise.then((c) => {
       if (!c.closed.is_set()) {
         c.send({
@@ -33,35 +32,58 @@ export const websocket = <
       }
       return c;
     });
+
+    const events: unknown[] = [];
+
+    let index = 0;
+    const firstCommand = initializedChannel.then((c) =>
+      Promise.race([c.recv(), c.closed.wait()])
+    );
     while (true) {
-      currentEvent = yield {
-        name: "delegated",
-        getCmd: async () => {
-          const channel = await initializedChannel;
-          if (channel.closed.is_set()) {
-            throw new Error(
-              "channel was closed before message is transmitted",
-            );
-          }
+      events.push(
+        yield {
+          name: "delegated",
+          getCmd: async () => {
+            const channel = await initializedChannel;
+            if (channel.closed.is_set()) {
+              throw new Error(
+                "channel was closed before message is transmitted",
+              );
+            }
 
-          if (currentEvent !== null) {
-            await channel.send(currentEvent);
-          }
+            let cmd: Command | true | null = await firstCommand;
 
-          const cmd = await Promise.race([
-            channel.recv(),
-            channel.closed.wait(),
-          ]);
-          if (cmd === true) {
-            throw new Error(
-              "channel was closed before message is transmitted",
-            );
-          }
-          return cmd;
+            for (; index < events.length && cmd !== true; index++) {
+              const isClosed = await Promise.race([
+                channel.send(events[index]),
+                channel.closed.wait(),
+              ]);
+              if (isClosed === true) {
+                break;
+              }
+              cmd = await Promise.race([channel.recv(), channel.closed.wait()]);
+            }
+            if (cmd === null) {
+              cmd = await Promise.race([channel.recv(), channel.closed.wait()]);
+            }
+
+            if (cmd === true) {
+              throw new Error(
+                "channel was closed before message is transmitted",
+              );
+            }
+            return cmd;
+          },
         },
-      };
+      );
     }
   };
-  workflowFunc.dispose = () => socket.close();
+  workflowFunc.dispose = () => {
+    channelPromise.then((c) => {
+      c.closed.set();
+    }).finally(() => {
+      socket.close();
+    });
+  };
   return workflowFunc;
 };
