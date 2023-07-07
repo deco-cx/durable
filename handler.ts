@@ -43,18 +43,18 @@ export interface RunRequest<
   TMetadata extends Metadata = Metadata,
 > {
   input: [...TArgs];
-  events: EventStream;
+  commands: CommandStream;
   executionId: string;
   metadata: TMetadata;
 }
 
 export const arrToStream = (
   arr: unknown[],
-): EventStream & { nextCommand: Command } => {
+): CommandStream & { nextCommand: Command } => {
   let current = 0;
   let nextCommand: Command = undefined!;
   return {
-    send: (_cmd: Command) => {
+    issue: (_cmd: Command) => {
       if (current === arr.length) {
         nextCommand = _cmd;
         return Promise.resolve({ isClosed: true });
@@ -80,7 +80,7 @@ export const workflowRemoteRunner = <
   Context: new (executionId: string, metadata?: TMetadata) => TCtx,
 ): (req: RunRequest<TArgs, TMetadata>) => Promise<void> => {
   return async function (
-    { events, input, executionId, metadata }: RunRequest<
+    { commands, input, executionId, metadata }: RunRequest<
       TArgs,
       TMetadata
     >,
@@ -90,19 +90,16 @@ export const workflowRemoteRunner = <
     const genFn = workflow(ctx, ...input);
     let cmd = genFn.next();
     while (!cmd.done) {
-      const event = await events.send(cmd.value);
+      const event = await commands.issue(cmd.value);
       if ((event as { isClosed: true })?.isClosed) {
-        break;
+        return;
       }
       cmd = genFn.next(event);
     }
 
     if (cmd.done) {
-      await events.send({ name: "finish_workflow", result: cmd.value });
-      return;
+      await commands.issue({ name: "finish_workflow", result: cmd.value });
     }
-
-    await events.send(cmd.value);
   };
 };
 
@@ -130,7 +127,7 @@ export const workflowHTTPHandler = <
       .json() as HttpRunRequest<TArgs, TMetadata>;
 
     const stream = arrToStream(runReq.results);
-    await runner({ ...runReq, events: stream });
+    await runner({ ...runReq, commands: stream });
     return Response.json(
       stream.nextCommand,
     );
@@ -171,8 +168,8 @@ export const useWorkflowRoutes = (
   return router(routes);
 };
 
-export interface EventStream {
-  send: (cmd: Command) => Promise<unknown | { isClosed: true }>;
+export interface CommandStream {
+  issue: (cmd: Command) => Promise<unknown | { isClosed: true }>;
 }
 const useChannel =
   <TArgs extends Arg = Arg, TMetadata extends Metadata = Metadata>(
@@ -183,8 +180,8 @@ const useChannel =
     if (!isWebSocketRunReq<TArgs, TMetadata>(runReq)) {
       throw new Error(`received unexpected message ${JSON.stringify(runReq)}`);
     }
-    const events: EventStream = {
-      send: async (cmd: Command) => {
+    const commands: CommandStream = {
+      issue: async (cmd: Command) => {
         const closed = await Promise.race([chan.closed.wait(), chan.send(cmd)]);
         if (closed === true) {
           return { isClosed: true };
@@ -196,7 +193,7 @@ const useChannel =
         return event;
       },
     };
-    await runner({ ...runReq, events });
+    await runner({ ...runReq, commands });
   };
 /**
  * Exposes a workflow function as a http websocket handler.

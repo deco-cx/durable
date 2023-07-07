@@ -15,5 +15,5 @@
   "editor.formatOnSave": true,
   "[html]": {
     "editor.defaultFormatter": "vscode.html-language-features"
-  }
+  },
 }
