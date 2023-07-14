@@ -95,27 +95,28 @@ export class WorkflowService {
    * @param options the workflow creation options
    * @param input the workflow input
    */
-  public async startExecution<TArgs extends Arg = Arg>(
+  public startExecution<TArgs extends Arg = Arg>(
     { alias, executionId, metadata }: WorkflowCreationOptions,
     input?: [...TArgs],
   ): Promise<WorkflowExecution> {
     const wkflowInstanceId = executionId ?? v4.generate();
-    return await this.backend.withinTransaction(async (db) => {
-      const execution: WorkflowExecution = {
-        alias,
-        id: wkflowInstanceId,
-        status: "running",
-        metadata,
-        input,
-      };
-      const executionsDB = db.execution(wkflowInstanceId);
-      await executionsDB.create(execution); // cannot be parallelized
-      await executionsDB.pending.add({
-        ...newEvent(),
-        type: "workflow_started",
-        input,
-      });
-      return execution;
-    });
+    return this.backend.execution(wkflowInstanceId).withinTransaction(
+      async (executionsDB) => {
+        const execution: WorkflowExecution = {
+          alias,
+          id: wkflowInstanceId,
+          status: "running",
+          metadata,
+          input,
+        };
+        await executionsDB.create(execution); // cannot be parallelized
+        await executionsDB.pending.add({
+          ...newEvent(),
+          type: "workflow_started",
+          input,
+        });
+        return execution;
+      },
+    );
   }
 }

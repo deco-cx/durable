@@ -4,8 +4,8 @@ import { HistoryEvent } from "../runtime/core/events.ts";
 import { Arg } from "../types.ts";
 
 export interface PaginationParams {
-  page: number;
-  pageSize: number;
+  page?: number;
+  pageSize?: number;
 }
 /**
  * Events is the operation that can be executed against the events.
@@ -25,6 +25,15 @@ export interface Execution {
   get(): Promise<WorkflowExecution | undefined>;
   create(execution: WorkflowExecution): Promise<void>;
   update(execution: WorkflowExecution): Promise<void>;
+  /**
+   * withintransaction executes commands inside a transaction providing the ACID guarantees
+   * if the executor function returns an exception, the transaction should be rolled back, otherwise it should commit all changes atomically.
+   * when executing the given function any operation should be inside a lock machanism avoiding double execution in progress.
+   * @param f the execution func
+   */
+  withinTransaction<T>(
+    f: (transactor: Execution) => PromiseOrValue<T>,
+  ): Promise<T>;
 }
 
 /**
@@ -49,13 +58,6 @@ export interface DB {
     lockTimeMS: number,
     limit: number,
   ): Promise<PendingExecution[]>;
-  /**
-   * withintransaction executes commands inside a transaction providing the ACID guarantees
-   * if the executor function returns an exception, the transaction should be rolled back, otherwise it should commit all changes atomically.
-   * when executing the given function any operation should be inside a lock machanism avoiding double execution in progress.
-   * @param f the execution func
-   */
-  withinTransaction<T>(f: (transactor: DB) => PromiseOrValue<T>): Promise<T>;
 }
 
 export type WorkflowStatus =

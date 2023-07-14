@@ -125,33 +125,35 @@ const executionsFor =
       update: async (execution: WorkflowExecution) => {
         await useClient(queryObject(updateExecution(executionId, execution)));
       },
+      withinTransaction: async <TResult>(
+        exec: (db: Execution) => Promise<TResult>,
+      ): Promise<TResult> => {
+        return await useClient(async (client) => {
+          if (!isClient(client)) {
+            const execDB = executionsFor(apply(client));
+            return await exec(execDB(executionId));
+          }
+          const transaction = client.createTransaction("transaction", {
+            isolation_level: "repeatable_read",
+          });
+          await transaction.begin();
+          try {
+            const execDB = executionsFor(apply(transaction));
+            const result = await exec(execDB(executionId));
+            await transaction.commit();
+            return result;
+          } catch (e) {
+            await transaction.rollback();
+            throw e;
+          }
+        });
+      },
     };
   };
 
 function dbFor(useClient: UseClient): DB {
   return {
     execution: executionsFor(useClient),
-    withinTransaction: async <TResult>(
-      exec: (db: DB) => Promise<TResult>,
-    ): Promise<TResult> => {
-      return await useClient(async (client) => {
-        if (!isClient(client)) {
-          return await exec(dbFor(apply(client)));
-        }
-        const transaction = client.createTransaction("transaction", {
-          isolation_level: "repeatable_read",
-        });
-        await transaction.begin();
-        try {
-          const result = await exec(dbFor(apply(transaction)));
-          await transaction.commit();
-          return result;
-        } catch (e) {
-          await transaction.rollback();
-          throw e;
-        }
-      });
-    },
     pendingExecutions: (
       lockTimeoutMS: number,
       limit: number,

@@ -1,6 +1,5 @@
-import { serve } from "https://deno.land/std@0.173.0/http/server.ts";
-import { router } from "https://deno.land/x/rutt@0.0.14/mod.ts";
-import { DB } from "../backends/backend.ts";
+import { Hono } from "https://deno.land/x/hono@v3.2.7/mod.ts";
+import { DB, WorkflowExecution } from "../backends/backend.ts";
 import { postgres } from "../backends/postgres/db.ts";
 import {
   buildWorkflowRegistry,
@@ -11,7 +10,8 @@ import { WorkflowService } from "./service.ts";
 
 // as alias is immutable we can cache it forever.
 const aliasCache: Record<string, Promise<string | undefined>> = {};
-export const start = async (db?: DB, _registry?: WorkflowRegistry) => {
+export const getRouter = async (db?: DB, _registry?: WorkflowRegistry) => {
+  const app = new Hono();
   const registry = _registry ?? await buildWorkflowRegistry();
   const service = new WorkflowService(
     db ?? await postgres(),
@@ -37,75 +37,80 @@ export const start = async (db?: DB, _registry?: WorkflowRegistry) => {
     }
     return true;
   };
-  return await serve(
-    router({
-      "GET@/.well_known/jwks.json": wellKnownJWKSHandler,
-      "POST@/executions": async (req) => {
-        const { alias, input, metadata, id } = await req.json();
-        await registry.verifySignature(alias, req);
-        return Response.json(
-          await service.startExecution(
-            { alias, executionId: id, metadata },
-            Array.isArray(input) ? input : [input],
-          ),
-        );
-      },
-      "GET@/executions": (_req) =>
-        new Response("NOT IMPLEMENTED", { status: 501 }),
-      "GET@/executions/:id": async (_req, _, { id }) => {
-        const execution = await service.getExecution(id);
-        if (execution === undefined) {
-          return Response.json({}, { status: 403 }); // do not expose not found errors.
-        }
-        await registry.verifySignature(execution.alias, _req);
-        return Response.json(execution);
-      },
-      "GET@/executions/:id/history": async (req, _, { id }) => {
-        if (!await cachedVerifySignature(id, req)) {
-          return Response.json({}, { status: 403 }); // do not expose not found errors.
-        }
-        const url = new URL(req.url);
-        const page = url.searchParams.get("page");
-        const pageSize = url.searchParams.get("pageSize");
-        const history = await service.executionHistory(
-          id,
-          page ? +page : 0,
-          pageSize ? +pageSize : 10,
-        );
-        if (history === undefined) {
-          return Response.json({}, { status: 403 }); // do not expose not found errors.
-        }
-        return Response.json(history);
-      },
-      "DELETE@/executions/:id": async (req, _, { id }) => {
-        if (!await cachedVerifySignature(id, req)) {
-          return Response.json({}, { status: 403 }); // do not expose not found errors.
-        }
-        const reason = await req.json().then((resp) => resp.reason as string);
-        await service.cancelExecution(
-          id,
-          reason,
-        );
-        return Response.json(
-          { id, reason },
-        );
-      },
-      "POST@/executions/:id/signals/:signal": async (
-        req,
-        _,
-        { id, signal },
-      ) => {
-        if (!await cachedVerifySignature(id, req)) {
-          return Response.json({}, { status: 403 }); // do not expose not found errors.
-        }
-        await service.signalExecution(id, signal, await req.json());
-        return Response.json(
-          { id, signal },
-        );
-      },
-    }),
-    { port: 8001 },
-  );
+  app.get("/.well_known/jwks.json", wellKnownJWKSHandler);
+  app.post("/executions", async ({ req: { raw: req } }) => {
+    const { alias, input, metadata, id } =
+      (await req.json()) as WorkflowExecution;
+    await registry.verifySignature(alias, req);
+    return Response.json(
+      await service.startExecution(
+        { alias, executionId: id, metadata },
+        Array.isArray(input) ? input : [input],
+      ),
+    );
+  });
+  app.get("/executions/:id", async ({ req }) => {
+    const { id } = req.param();
+    const execution = await service.getExecution(id);
+    if (execution === undefined) {
+      return Response.json({}, { status: 403 }); // do not expose not found errors.
+    }
+    await registry.verifySignature(execution.alias, req.raw);
+    return Response.json(execution);
+  });
+  app.get("/executions/:id/history", async ({ req: _req }) => {
+    const req = _req.raw;
+    const { id } = _req.param();
+    if (!await cachedVerifySignature(id, req)) {
+      return Response.json({}, { status: 403 }); // do not expose not found errors.
+    }
+    const url = new URL(req.url);
+    const page = url.searchParams.get("page");
+    const pageSize = url.searchParams.get("pageSize");
+    const history = await service.executionHistory(
+      id,
+      page ? +page : 0,
+      pageSize ? +pageSize : 10,
+    );
+    if (history === undefined) {
+      return Response.json({}, { status: 403 }); // do not expose not found errors.
+    }
+    return Response.json(history);
+  });
+  app.delete("/executions/:id", async (c) => {
+    const req = c.req.raw;
+    const { id } = c.req.param();
+    if (!await cachedVerifySignature(id, req)) {
+      return Response.json({}, { status: 403 }); // do not expose not found errors.
+    }
+    const reason = await req.json().then((
+      resp: { reason: string },
+    ) => resp.reason);
+    await service.cancelExecution(
+      id,
+      reason,
+    );
+    return Response.json(
+      { id, reason },
+    );
+  });
+  app.post("/executions/:id/signals/:signal", async (c) => {
+    const req = c.req.raw;
+    const { id, signal } = c.req.param();
+    if (!await cachedVerifySignature(id, req)) {
+      return Response.json({}, { status: 403 }); // do not expose not found errors.
+    }
+    await service.signalExecution(id, signal, await req.json());
+    return Response.json(
+      { id, signal },
+    );
+  });
+  return app;
+};
+
+export const start = async (db?: DB, _registry?: WorkflowRegistry) => {
+  const router = await getRouter(db, _registry);
+  Deno.serve({ port: 8001, hostname: "0.0.0.0" }, router.fetch);
 };
 
 if (import.meta.main) {

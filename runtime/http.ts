@@ -1,4 +1,4 @@
-import { Workflow, WorkflowContext } from "../mod.ts";
+import { Command, Workflow, WorkflowContext } from "../mod.ts";
 import { HttpWorkflowRuntimeRef } from "../registry/registries.ts";
 import { signedFetch } from "../security/fetch.ts";
 import { Arg } from "../types.ts";
@@ -33,7 +33,7 @@ export const http = <
                 metadata: ctx.metadata,
               }),
             }).then(async (resp) => {
-              const msg = await resp.json();
+              const msg: Command = await resp.json();
               if (resp.status >= 400) {
                 throw new Error(
                   `error when fetching new command ${resp.status} ${

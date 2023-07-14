@@ -1,5 +1,4 @@
 // deno-lint-ignore-file no-explicit-any
-import { MINUTE } from "https://deno.land/std@0.160.0/datetime/mod.ts";
 import { WorkflowContext } from "../context.ts";
 import { Workflow } from "../mod.ts";
 import { PromiseOrValue } from "../promise.ts";
@@ -158,8 +157,12 @@ const buildAll = (
     {},
   );
 };
-const TRUSTED_REGISTRIES = Deno.env.get("TRUSTED_REGISTRIES_URL") ??
+
+const registry =
   "https://raw.githubusercontent.com/mcandeia/trusted-registries/7dd8f5f8e8b0d5b376aa03425298c98850e3f239/registries.ts";
+const TRUSTED_REGISTRIES = Deno && typeof Deno !== "undefined"
+  ? Deno.env.get("TRUSTED_REGISTRIES_URL") ?? registry
+  : registry;
 
 const fetchTrusted = async (): Promise<
   Record<string, Registry>
@@ -174,7 +177,7 @@ const fetchTrusted = async (): Promise<
   return await registries.default();
 };
 
-const REBUILD_TRUSTED_INTERVAL_MS = 1 * MINUTE;
+const REBUILD_TRUSTED_INTERVAL_MS = 1e3 * 60;
 export const buildWorkflowRegistry = async (): Promise<WorkflowRegistry> => {
   const trustedRegistries = await fetchTrusted();
   let current = buildAll(trustedRegistries);
