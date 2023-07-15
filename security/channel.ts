@@ -1,4 +1,5 @@
-import { Event, Queue } from "https://deno.land/x/async@v1.2.0/mod.ts";
+import { Event, Queue } from "../async.js";
+
 import { PromiseOrValue } from "../promise.ts";
 import {
   channelEncryption,
@@ -54,7 +55,7 @@ export const asChannel = async <Send, Recv>(
 ): Promise<Channel<Send, Recv>> => {
   const { sign, verify } = useChannelEncryption(encryption);
   const ready = new Event();
-  const recv = new Queue<string>();
+  const recv = new Queue();
   const closed = new Event();
   socket.addEventListener("open", () => {
     ready.set();
@@ -64,6 +65,9 @@ export const asChannel = async <Send, Recv>(
   });
   socket.addEventListener("message", (event) => {
     recv.put(event.data);
+  });
+  socket.addEventListener("error", (event) => {
+    console.log("error", event);
   });
 
   await Promise.race([ready.wait(), closed.wait()]);

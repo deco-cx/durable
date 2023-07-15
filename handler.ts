@@ -1,6 +1,8 @@
 // deno-lint-ignore-file no-explicit-any
-import { Handler } from "https://deno.land/std@0.173.0/http/server.ts";
-import { router, Routes } from "https://deno.land/x/rutt@0.0.14/mod.ts";
+import type {
+  ConnInfo,
+  Handler,
+} from "https://deno.land/std@0.173.0/http/server.ts";
 import { Metadata } from "./context.ts";
 import { asVerifiedChannel, Channel, WorkflowContext } from "./mod.ts";
 import { PromiseOrValue } from "./promise.ts";
@@ -50,7 +52,7 @@ export interface RunRequest<
 
 export const arrToStream = (
   arr: unknown[],
-): CommandStream & { nextCommand: Command } => {
+): CommandStream & { nextCommand: () => Command } => {
   let current = 0;
   let nextCommand: Command = undefined!;
   return {
@@ -61,7 +63,7 @@ export const arrToStream = (
       }
       return Promise.resolve(arr[current++]);
     },
-    nextCommand,
+    nextCommand: () => nextCommand,
   };
 };
 
@@ -129,7 +131,7 @@ export const workflowHTTPHandler = <
     const stream = arrToStream(runReq.results);
     await runner({ ...runReq, commands: stream });
     return Response.json(
-      stream.nextCommand,
+      stream.nextCommand(),
     );
   };
 };
@@ -154,18 +156,22 @@ export const useWorkflowRoutes = (
   { baseRoute }: CreateRouteOptions,
   workflows: Workflows,
 ): Handler => {
-  let routes: Routes = {};
+  const routes: Record<string, Handler> = {};
   for (const wkflow of workflows) {
     const { alias, func } = isAlisedWorkflow(wkflow)
       ? wkflow
       : { alias: wkflow.name, func: wkflow };
     const route = `${baseRoute}${alias}`;
-    routes = {
-      ...routes,
-      [`POST@${route}`]: workflowHTTPHandler(func, WorkflowContext),
-    };
+    routes[route] = workflowHTTPHandler(func, WorkflowContext);
   }
-  return router(routes);
+  return (req: Request, conn: ConnInfo) => {
+    const url = new URL(req.url);
+    const handler = routes[url.pathname];
+    if (!handler) {
+      return new Response(null, { status: 404 });
+    }
+    return handler(req, conn);
+  };
 };
 
 export interface CommandStream {

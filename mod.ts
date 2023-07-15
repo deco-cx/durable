@@ -6,7 +6,6 @@ import {
   workflowWebSocketHandler,
 } from "./handler.ts";
 import type { Workflow } from "./runtime/core/workflow.ts";
-import { tryParseBool } from "./utils.ts";
 export type { WorkflowExecution } from "./backends/backend.ts";
 export type { Metadata } from "./context.ts";
 export { workflowRemoteRunner } from "./handler.ts";
@@ -45,7 +44,4 @@ export {
   workflowHTTPHandler,
   workflowWebSocketHandler,
 };
-const DEBUG_ENABLED = typeof Deno === "undefined"
-  ? false
-  : tryParseBool(Deno.env.get("ENABLE_DEBUG")) ??
-    false;
+const DEBUG_ENABLED = false;

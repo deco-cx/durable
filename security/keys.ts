@@ -44,8 +44,8 @@ export const importJWKFromString = (
   );
 
 const getOrGenerateKeyPair = async (): Promise<[JsonWebKey, JsonWebKey]> => {
-  const publicKeyEnvValue = Deno.env.get(PUBLIC_KEY_ENV_VAR);
-  const privateKeyEnvValue = Deno.env.get(PRIVATE_KEY_ENV_VAR);
+  const publicKeyEnvValue = undefined; //Deno.env.get(PUBLIC_KEY_ENV_VAR);
+  const privateKeyEnvValue = undefined; //Deno.env.get(PRIVATE_KEY_ENV_VAR);
   if (!publicKeyEnvValue || !privateKeyEnvValue) {
     return await generateKeyPair();
   }

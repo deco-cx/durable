@@ -1,7 +1,6 @@
 import {
   Env,
   ExecutionEvent,
-  Queue,
 } from "../../cloudflare/durable-workers/src/worker.ts";
 import { PromiseOrValue } from "../../promise.ts";
 import { HistoryEvent } from "../../runtime/core/events.ts";
@@ -12,10 +11,6 @@ import {
   PaginationParams,
   WorkflowExecution,
 } from "../backend.ts";
-
-export type DurableObjectStub = any;
-export type DurableObjectTransaction = any;
-export type DurableObjectStorage = any;
 
 const withOrigin = (url: string, origin: string): Request => {
   return new Request(new URL(url, origin));
@@ -54,6 +49,14 @@ const eventsFor = (
             events,
           },
         });
+      } else {
+        await durable.fetch(
+          withOrigin(
+            "/pending",
+            origin,
+          ),
+          { body: JSON.stringify({ events }), method: "POST" },
+        ).then(parseOrThrow<HistoryEvent[]>());
       }
     },
   };
@@ -65,9 +68,9 @@ const executionFor = (
   durable: DurableObjectStub,
   events: Queue<ExecutionEvent>,
 ): Execution => {
-  const upsert = (workflow: WorkflowExecution) => {
+  const useMethod = (method: string) => (workflow: WorkflowExecution) => {
     return durable.fetch(withOrigin("/", origin), {
-      method: "PUT",
+      method,
       body: JSON.stringify(workflow),
     }).then(parseOrThrow<void>());
   };
@@ -79,8 +82,8 @@ const executionFor = (
     },
     pending: eventsFor(executionId, origin, "/pending", durable, events),
     history: eventsFor(executionId, origin, "/history", durable, events),
-    update: upsert,
-    create: upsert,
+    update: useMethod("PUT"),
+    create: useMethod("POST"),
     withinTransaction: async <T>(f: (db: Execution) => PromiseOrValue<T>) => {
       return await f(executionFor(executionId, origin, durable, events));
     },

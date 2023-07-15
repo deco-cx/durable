@@ -1,4 +1,4 @@
-import { pLimit } from "https://deno.land/x/p_limit@v1.0.0/mod.ts";
+import { pLimit } from "./p-limit.js";
 import { Arg } from "./types.ts";
 
 /**

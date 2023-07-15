@@ -10,6 +10,7 @@ import { verifySignature } from "../security/identity.ts";
 import { parseJWK } from "../security/keys.ts";
 import { Arg } from "../types.ts";
 import { setIntervalFlight } from "../utils.ts";
+import * as trusted from "./trusted.ts";
 
 export interface WorkflowRegistry {
   get<
@@ -158,34 +159,22 @@ const buildAll = (
   );
 };
 
-const registry =
-  "https://raw.githubusercontent.com/mcandeia/trusted-registries/7dd8f5f8e8b0d5b376aa03425298c98850e3f239/registries.ts";
-const TRUSTED_REGISTRIES = Deno && typeof Deno !== "undefined"
-  ? Deno.env.get("TRUSTED_REGISTRIES_URL") ?? registry
-  : registry;
-
 const fetchTrusted = async (): Promise<
   Record<string, Registry>
 > => {
-  const registries = await import(TRUSTED_REGISTRIES);
+  const registries = trusted;
 
-  if (registries?.default === undefined) {
-    throw new Error(
-      `could not load trusted repositories: ${TRUSTED_REGISTRIES}`,
-    );
-  }
-  return await registries.default();
+  return await registries.default() as Record<string, Registry>;
 };
 
-const REBUILD_TRUSTED_INTERVAL_MS = 1e3 * 60;
 export const buildWorkflowRegistry = async (): Promise<WorkflowRegistry> => {
   const trustedRegistries = await fetchTrusted();
-  let current = buildAll(trustedRegistries);
-  setIntervalFlight(async () => {
-    await fetchTrusted().then((trusted) => {
-      current = buildAll(trusted);
-    });
-  }, REBUILD_TRUSTED_INTERVAL_MS);
+  const current = buildAll(trustedRegistries);
+  // setIntervalFlight(async () => {
+  //   await fetchTrusted().then((trusted) => {
+  //     current = buildAll(trusted);
+  //   });
+  // }, REBUILD_TRUSTED_INTERVAL_MS);
 
   return {
     get: async (alias: string) => {

@@ -1,12 +1,11 @@
-import { Execution } from "../../../backends/backend.ts";
+import { Execution, WorkflowExecution } from "../../../backends/backend.ts";
 import { durableExecution } from "../../../backends/durableObjects/db.ts";
 import { PromiseOrValue } from "../../../promise.ts";
 import { buildWorkflowRegistry } from "../../../registry/registries.ts";
 import { HistoryEvent } from "../../../runtime/core/events.ts";
-import { runWorkflow } from "../../../workers/main.ts";
+import { runWorkflow } from "../../../workers/run.ts";
 import { Env } from "./worker.ts";
 
-export type DurableObjectState = any;
 export type Handler = (request: Request) => PromiseOrValue<Response>;
 export type HTTPMethod = "GET" | "POST" | "PUT" | "HEAD" | "DELETE";
 export type Routes = Record<
@@ -16,9 +15,31 @@ export type Routes = Record<
 
 export const buildRoutes = (wkflow: Workflow): Routes => {
   return {
-    "/": {},
-    "/pending": {},
-    "/history": {},
+    "/": {
+      "GET": async (_req: Request) => {
+        return Response.json(await wkflow.execution.get());
+      },
+      "POST": async (req: Request) => {
+        const body = await req.json();
+        await wkflow.execution.create(body as WorkflowExecution);
+        return new Response(JSON.stringify(body), { status: 201 });
+      },
+    },
+    "/pending": {
+      "POST": async (req: Request) => {
+        const body: { events: HistoryEvent[] } = await req.json();
+        await wkflow.handler(...body.events);
+        return new Response(JSON.stringify({}), { status: 200 });
+      },
+    },
+    "/history": {
+      "GET": async (_req: Request) => {
+        return new Response(
+          JSON.stringify(await wkflow.execution.history.get()),
+          { status: 200 },
+        );
+      },
+    },
   };
 };
 

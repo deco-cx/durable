@@ -1,4 +1,4 @@
-import { v4 } from "https://deno.land/std@0.72.0/uuid/mod.ts";
+import { v4 } from "../../uuid.js";
 import { Arg } from "../../types.ts";
 import { Command } from "./commands.ts";
 import { WorkflowState } from "./state.ts";

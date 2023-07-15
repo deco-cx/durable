@@ -6,7 +6,6 @@ import {
   PaginationParams,
   WorkflowExecution,
 } from "../backend.ts";
-import { DurableObjectStorage, DurableObjectTransaction } from "./connect.ts";
 
 export interface SingletonStorage<T> {
   get: () => Promise<T | undefined>;
@@ -19,7 +18,7 @@ export interface Identifiable {
 export interface CollectionStorage<T extends readonly Identifiable[]> {
   add: (...items: T) => Promise<void>;
   get: (
-    pagination?: PaginationParams & { reversed?: boolean },
+    pagination?: PaginationParams & { reverse?: boolean },
   ) => Promise<Map<string, T[number]>>;
   del: (...items: T) => Promise<void>;
 }
@@ -45,16 +44,22 @@ export const useCollection = <T extends readonly Identifiable[]>(
       );
     },
     get: async (
-      pagination?: PaginationParams & { reversed?: boolean },
+      pagination?: PaginationParams & { reverse?: boolean },
     ): Promise<Map<string, T[number]>> => {
+      const items = await durable.list<T[number]>({
+        prefix,
+        reverse: pagination?.reverse ?? false,
+      });
+      if (!pagination) {
+        return items;
+      }
+
+      // TODO(mcandeia) add pagination
       const page = pagination?.page ?? 0;
       const pageSize = pagination?.pageSize ?? 10;
       const start = page * pageSize;
-      const _end = start + pageSize;
-      return await durable.list({
-        prefix,
-        reverse: pagination?.reversed ?? false,
-      });
+      const end = start + pageSize;
+      return items;
     },
     del: async (...items: T): Promise<void> => {
       await durable.delete(items.map(itemId));
@@ -98,6 +103,9 @@ export const durableExecution = (
         const initialCurrentAlarm: number | null = await db.getAlarm();
         let currentAlarm = initialCurrentAlarm;
         for (const event of events) {
+          event.visibleAt = event.visibleAt
+            ? new Date(event.visibleAt)
+            : event.visibleAt;
           if (
             event.visibleAt &&
             (currentAlarm === null || event.visibleAt.getTime() < currentAlarm)
@@ -130,6 +138,9 @@ export const durableExecution = (
 
         for (const [key, event] of Object.entries(current)) {
           if (!beingDeleted[key]) { // not being deleted
+            event.visibleAt = event.visibleAt
+              ? new Date(event.visibleAt)
+              : event.visibleAt;
             if (
               event.visibleAt &&
               (
@@ -152,9 +163,12 @@ export const durableExecution = (
     history: {
       ...history,
       get: async (pagination?: PaginationParams) => {
-        const reversed = pagination !== undefined;
-        const hist = await history.get({ ...(pagination ?? {}), reversed });
-        return [...hist.values()];
+        const reverse = pagination !== undefined;
+        const hist = await history.get({ ...(pagination ?? {}), reverse });
+        return [...hist.values()].sort((a, b) => {
+          const resp = a.seq - b.seq;
+          return reverse ? -resp : resp;
+        });
       },
       del: async () => {}, // del is not supported on history
     },
@@ -166,7 +180,7 @@ export const durableExecution = (
       }
       return (await db.transaction(
         async (inner: DurableObjectTransaction) => {
-          return await f(durableExecution(inner));
+          return await f(durableExecution(inner, transientEvents));
         },
       )) as T;
     },

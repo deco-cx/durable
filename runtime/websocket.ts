@@ -51,8 +51,7 @@ export const websocket = <
               );
             }
 
-            let cmd: Command | true | null = await firstCommand;
-
+            let cmd: Command | boolean = await firstCommand;
             for (; index < events.length && cmd !== true; index++) {
               const isClosed = await Promise.race([
                 channel.send(events[index]),
@@ -67,7 +66,7 @@ export const websocket = <
               cmd = await Promise.race([channel.recv(), channel.closed.wait()]);
             }
 
-            if (cmd === true) {
+            if (typeof cmd === "boolean") {
               throw new Error(
                 "channel was closed before message is transmitted",
               );

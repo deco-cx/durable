@@ -1,8 +1,5 @@
-import {
-  decode,
-  encode,
-} from "https://deno.land/std@0.186.0/encoding/base64.ts";
 import { PromiseOrValue } from "../promise.ts";
+import { decode, encode } from "./base64.ts";
 import { ChannelEncryption } from "./channel.ts";
 import { alg, getKeyPair, hash, importJWK } from "./keys.ts";
 

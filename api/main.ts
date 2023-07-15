@@ -1,115 +1,13 @@
 import { Hono } from "https://deno.land/x/hono@v3.2.7/mod.ts";
-import { DB, WorkflowExecution } from "../backends/backend.ts";
+import { DB } from "../backends/backend.ts";
 import { postgres } from "../backends/postgres/db.ts";
-import {
-  buildWorkflowRegistry,
-  WorkflowRegistry,
-} from "../registry/registries.ts";
-import { wellKnownJWKSHandler } from "../security/identity.ts";
-import { WorkflowService } from "./service.ts";
+import { WorkflowRegistry } from "../registry/registries.ts";
+import { getRouter } from "./router.ts";
 
 // as alias is immutable we can cache it forever.
-const aliasCache: Record<string, Promise<string | undefined>> = {};
-export const getRouter = async (db?: DB, _registry?: WorkflowRegistry) => {
-  const app = new Hono();
-  const registry = _registry ?? await buildWorkflowRegistry();
-  const service = new WorkflowService(
-    db ?? await postgres(),
-    registry,
-  );
-  const cachedVerifySignature = async (
-    id: string,
-    req: Request,
-  ): Promise<boolean> => {
-    aliasCache[id] ??= service.getExecution(id).then((execution) =>
-      execution?.alias
-    );
-    const alias = await aliasCache[id];
-    if (alias === undefined) {
-      delete aliasCache[id];
-      return false;
-    }
-    try {
-      await registry.verifySignature(alias, req);
-    } catch (err) {
-      console.error(err);
-      return false;
-    }
-    return true;
-  };
-  app.get("/.well_known/jwks.json", wellKnownJWKSHandler);
-  app.post("/executions", async ({ req: { raw: req } }) => {
-    const { alias, input, metadata, id } =
-      (await req.json()) as WorkflowExecution;
-    await registry.verifySignature(alias, req);
-    return Response.json(
-      await service.startExecution(
-        { alias, executionId: id, metadata },
-        Array.isArray(input) ? input : [input],
-      ),
-    );
-  });
-  app.get("/executions/:id", async ({ req }) => {
-    const { id } = req.param();
-    const execution = await service.getExecution(id);
-    if (execution === undefined) {
-      return Response.json({}, { status: 403 }); // do not expose not found errors.
-    }
-    await registry.verifySignature(execution.alias, req.raw);
-    return Response.json(execution);
-  });
-  app.get("/executions/:id/history", async ({ req: _req }) => {
-    const req = _req.raw;
-    const { id } = _req.param();
-    if (!await cachedVerifySignature(id, req)) {
-      return Response.json({}, { status: 403 }); // do not expose not found errors.
-    }
-    const url = new URL(req.url);
-    const page = url.searchParams.get("page");
-    const pageSize = url.searchParams.get("pageSize");
-    const history = await service.executionHistory(
-      id,
-      page ? +page : 0,
-      pageSize ? +pageSize : 10,
-    );
-    if (history === undefined) {
-      return Response.json({}, { status: 403 }); // do not expose not found errors.
-    }
-    return Response.json(history);
-  });
-  app.delete("/executions/:id", async (c) => {
-    const req = c.req.raw;
-    const { id } = c.req.param();
-    if (!await cachedVerifySignature(id, req)) {
-      return Response.json({}, { status: 403 }); // do not expose not found errors.
-    }
-    const reason = await req.json().then((
-      resp: { reason: string },
-    ) => resp.reason);
-    await service.cancelExecution(
-      id,
-      reason,
-    );
-    return Response.json(
-      { id, reason },
-    );
-  });
-  app.post("/executions/:id/signals/:signal", async (c) => {
-    const req = c.req.raw;
-    const { id, signal } = c.req.param();
-    if (!await cachedVerifySignature(id, req)) {
-      return Response.json({}, { status: 403 }); // do not expose not found errors.
-    }
-    await service.signalExecution(id, signal, await req.json());
-    return Response.json(
-      { id, signal },
-    );
-  });
-  return app;
-};
-
 export const start = async (db?: DB, _registry?: WorkflowRegistry) => {
-  const router = await getRouter(db, _registry);
+  const app = new Hono();
+  const router = await getRouter(app, db ?? await postgres(), _registry);
   Deno.serve({ port: 8001, hostname: "0.0.0.0" }, router.fetch);
 };
 

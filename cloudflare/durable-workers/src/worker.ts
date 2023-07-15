@@ -1,12 +1,10 @@
-import { getRouter } from "../../../api/main.ts";
+import { getRouter } from "../../../api/router.ts";
 import { dbForEnv } from "../../../backends/durableObjects/connect.ts";
 import { buildWorkflowRegistry } from "../../../registry/registries.ts";
 import { HistoryEvent } from "../../../runtime/core/events.ts";
 export { Workflow } from "./workflow.ts";
+import { Hono } from "hono";
 
-export type Queue<T> = any;
-export type MessageBatch<T> = any;
-export type DurableObjectNamespace = any;
 export interface ExecutionEvent {
   executionId: string;
   origin: string;
@@ -29,7 +27,7 @@ export default {
   ): Promise<Response> {
     const url = new URL(req.url);
     const db = dbForEnv(env, url.origin);
-    const router = await getRouter(db, registry);
+    const router = await getRouter(new Hono(), db, registry);
     return router.fetch(req, env, ctx);
   },
   // The queue handler is invoked when a batch of messages is ready to be delivered
@@ -38,7 +36,7 @@ export default {
     for (const message of batch.messages) {
       const db = dbForEnv(env, message.body.origin);
       try {
-        await db.execution(message.body.executionId).pending.add(
+        await db.execution(message.body.executionId).history.add(
           ...message.body.payload.events,
         );
         message.ack();
