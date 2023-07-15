@@ -1,4 +1,3 @@
-import { v4 } from "../../uuid.js";
 import { Arg } from "../../types.ts";
 import { Command } from "./commands.ts";
 import { WorkflowState } from "./state.ts";
@@ -122,7 +121,7 @@ export type HistoryEvent =
 
 export const newEvent = (): Omit<Event, "type"> => {
   return {
-    id: v4.generate(),
+    id: crypto.randomUUID(),
     timestamp: new Date(),
     seq: 0,
   };

@@ -1,9 +1,9 @@
-import { Execution, WorkflowExecution } from "../../../backends/backend.ts";
-import { durableExecution } from "../../../backends/durableObjects/db.ts";
-import { PromiseOrValue } from "../../../promise.ts";
-import { buildWorkflowRegistry } from "../../../registry/registries.ts";
-import { HistoryEvent } from "../../../runtime/core/events.ts";
-import { runWorkflow } from "../../../workers/run.ts";
+import { Execution, WorkflowExecution } from "../backends/backend.ts";
+import { durableExecution } from "../backends/durableObjects/db.ts";
+import { PromiseOrValue } from "../promise.ts";
+import { buildWorkflowRegistry } from "../registry/registries.ts";
+import { HistoryEvent } from "../runtime/core/events.ts";
+import { runWorkflow } from "../workers/run.ts";
 import { Env } from "./worker.ts";
 
 export type Handler = (request: Request) => PromiseOrValue<Response>;

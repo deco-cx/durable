@@ -1,15 +1,14 @@
 // deno-lint-ignore-file no-explicit-any
 import { WorkflowContext } from "../context.ts";
-import { Workflow } from "../mod.ts";
 import { PromiseOrValue } from "../promise.ts";
 import { runtimeBuilder } from "../runtime/builders.ts";
+import { Workflow } from "../runtime/core/workflow.ts";
 import { deno } from "../runtime/deno.ts";
 import { http as httpRuntime } from "../runtime/http.ts";
 import { websocket as websocketRuntime } from "../runtime/websocket.ts";
 import { verifySignature } from "../security/identity.ts";
 import { parseJWK } from "../security/keys.ts";
 import { Arg } from "../types.ts";
-import { setIntervalFlight } from "../utils.ts";
 import * as trusted from "./trusted.ts";
 
 export interface WorkflowRegistry {
@@ -170,11 +169,6 @@ const fetchTrusted = async (): Promise<
 export const buildWorkflowRegistry = async (): Promise<WorkflowRegistry> => {
   const trustedRegistries = await fetchTrusted();
   const current = buildAll(trustedRegistries);
-  // setIntervalFlight(async () => {
-  //   await fetchTrusted().then((trusted) => {
-  //     current = buildAll(trusted);
-  //   });
-  // }, REBUILD_TRUSTED_INTERVAL_MS);
 
   return {
     get: async (alias: string) => {

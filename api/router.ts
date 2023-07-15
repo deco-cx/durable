@@ -1,4 +1,4 @@
-import type { Hono } from "https://deno.land/x/hono@v3.2.7/hono.ts";
+import type { Hono } from "hono";
 import type { DB, WorkflowExecution } from "../backends/backend.ts";
 import {
   buildWorkflowRegistry,
@@ -85,7 +85,7 @@ export const getRouter = async (
     if (!await cachedVerifySignature(id, req)) {
       return Response.json({}, { status: 403 }); // do not expose not found errors.
     }
-    const reason = await req.json().then((
+    const reason = await req.json<{ reason: string }>().then((
       resp: { reason: string },
     ) => resp.reason);
     await service.cancelExecution(

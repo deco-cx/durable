@@ -1,7 +1,7 @@
-import { getRouter } from "../../../api/router.ts";
-import { dbForEnv } from "../../../backends/durableObjects/connect.ts";
-import { buildWorkflowRegistry } from "../../../registry/registries.ts";
-import { HistoryEvent } from "../../../runtime/core/events.ts";
+import { getRouter } from "../api/router.ts";
+import { dbForEnv } from "../backends/durableObjects/connect.ts";
+import { buildWorkflowRegistry } from "../registry/registries.ts";
+import { HistoryEvent } from "../runtime/core/events.ts";
 export { Workflow } from "./workflow.ts";
 import { Hono } from "hono";
 

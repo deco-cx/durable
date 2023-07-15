@@ -3,13 +3,13 @@ import type {
   ConnInfo,
   Handler,
 } from "https://deno.land/std@0.173.0/http/server.ts";
-import { Metadata } from "./context.ts";
+import { Metadata } from "../../context.ts";
+import { PromiseOrValue } from "../../promise.ts";
+import { Command } from "../../runtime/core/commands.ts";
+import { Workflow } from "../../runtime/core/workflow.ts";
+import { verifySignature } from "../../security/identity.ts";
+import { Arg } from "../../types.ts";
 import { asVerifiedChannel, Channel, WorkflowContext } from "./mod.ts";
-import { PromiseOrValue } from "./promise.ts";
-import { Command } from "./runtime/core/commands.ts";
-import { Workflow } from "./runtime/core/workflow.ts";
-import { verifySignature } from "./security/identity.ts";
-import { Arg } from "./types.ts";
 
 export interface WebSocketRunRequest<
   TArgs extends Arg = Arg,

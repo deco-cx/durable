@@ -1,4 +1,5 @@
-import { Event, Queue } from "../async.js";
+import { Event } from "../async/event.ts";
+import { Queue } from "../async/queue.ts";
 
 import { PromiseOrValue } from "../promise.ts";
 import {
@@ -55,7 +56,7 @@ export const asChannel = async <Send, Recv>(
 ): Promise<Channel<Send, Recv>> => {
   const { sign, verify } = useChannelEncryption(encryption);
   const ready = new Event();
-  const recv = new Queue();
+  const recv = new Queue<string | ArrayBuffer>();
   const closed = new Event();
   socket.addEventListener("open", () => {
     ready.set();
@@ -64,7 +65,7 @@ export const asChannel = async <Send, Recv>(
     closed.set();
   });
   socket.addEventListener("message", (event) => {
-    recv.put(event.data);
+    recv.push(event.data);
   });
   socket.addEventListener("error", (event) => {
     console.log("error", event);
@@ -81,8 +82,8 @@ export const asChannel = async <Send, Recv>(
       });
     },
     recv: async () => {
-      const received = await recv.get();
-      const { isValid, data } = await verify(received);
+      const received = await recv.pop();
+      const { isValid, data } = await verify(received.toString());
       if (!isValid) {
         throw new Error("channel encryption does not match");
       }

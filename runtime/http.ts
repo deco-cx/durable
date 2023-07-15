@@ -1,8 +1,9 @@
-import { Command, Workflow, WorkflowContext } from "../mod.ts";
+import { WorkflowContext } from "../context.ts";
 import { HttpWorkflowRuntimeRef } from "../registry/registries.ts";
 import { signedFetch } from "../security/fetch.ts";
 import { Arg } from "../types.ts";
-import { WorkflowGen } from "./core/workflow.ts";
+import { Command } from "./core/commands.ts";
+import { Workflow, WorkflowGen } from "./core/workflow.ts";
 
 export const http = <
   TArgs extends Arg = Arg,

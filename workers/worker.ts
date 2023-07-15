@@ -1,5 +1,5 @@
-import { Event, Queue } from "https://deno.land/x/async@v1.2.0/mod.ts";
-import { DEBUG_ENABLED } from "../mod.ts";
+import { Event } from "../async/event.ts";
+import { Queue } from "../async/queue.ts";
 
 function isWorkItem<T, TResult>(
   v: T | WorkItem<T, TResult>,
@@ -15,13 +15,11 @@ const consumerFor = async <T, TResult>(
   handler: (s: T) => Promise<TResult>,
 ) => {
   while (!closed.is_set()) {
-    const recv = await Promise.race([q.get(), closed.wait()]);
-    if (recv === true) {
+    const recv = await Promise.race([q.pop(), closed.wait()]);
+    if (typeof recv === "boolean") {
       break;
     }
-    if (DEBUG_ENABLED) {
-      console.log(`worker[${Deno.hostname()}_${workerNum}]: ${recv.item}`);
-    }
+    console.log(`worker[${workerNum}]: ${recv.item}`);
     try {
       await handler(recv.item).then(recv.onSuccess).catch(recv.onError);
     } catch (e) {
@@ -38,7 +36,7 @@ const producerFor = async <T, TResult>(
   let next = await generator.next();
   while (!next.done) {
     const value = next.value;
-    await q.put(
+    await q.push(
       isWorkItem(value)
         ? value
         : { item: value, onSuccess: noop, onError: noop },
@@ -67,7 +65,7 @@ export const startWorkers = <T, TResult>(
   count: number,
   queue?: Queue<WorkItem<T, TResult>>,
 ) => {
-  const q = queue ?? new Queue<WorkItem<T, TResult>>(count);
+  const q = queue ?? new Queue<WorkItem<T, TResult>>();
   const closed = new Event();
   let n = 0;
   const workers = new Array<() => Promise<void>>(count)

@@ -1,4 +1,3 @@
-import { v4 } from "../uuid.js";
 import { DB, WorkflowExecution } from "../backends/backend.ts";
 import { Metadata } from "../context.ts";
 import { WorkflowRegistry } from "../registry/registries.ts";
@@ -99,7 +98,7 @@ export class WorkflowService {
     { alias, executionId, metadata }: WorkflowCreationOptions,
     input?: [...TArgs],
   ): Promise<WorkflowExecution> {
-    const wkflowInstanceId = executionId ?? v4.generate();
+    const wkflowInstanceId = executionId ?? crypto.randomUUID();
     return this.backend.execution(wkflowInstanceId).withinTransaction(
       async (executionsDB) => {
         const execution: WorkflowExecution = {

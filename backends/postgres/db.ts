@@ -1,12 +1,4 @@
-import {
-  PoolClient,
-  Transaction,
-} from "https://deno.land/x/postgres@v0.17.0/mod.ts";
-import {
-  QueryArguments,
-  QueryObjectResult,
-} from "https://deno.land/x/postgres@v0.17.0/query/query.ts";
-import { DEBUG_ENABLED } from "../../mod.ts";
+import { PoolClient, QueryResult, QueryResultRow } from "pg";
 import { HistoryEvent } from "../../runtime/core/events.ts";
 import { apply } from "../../utils.ts";
 import {
@@ -36,27 +28,20 @@ import {
 import schema from "./schema.ts";
 
 type UseClient = <TResult>(
-  f: (client: Transaction | PoolClient) => Promise<TResult>,
+  f: (client: PoolClient) => Promise<TResult>,
 ) => Promise<TResult>;
-
-const isClient = (client: Transaction | PoolClient): client is PoolClient => {
-  return typeof (client as PoolClient).createTransaction === "function";
-};
 
 const unlockWkflowExecution = (executionId: string) => async () => {
   await usePool((client) => {
-    client.queryObject(unlockExecution(executionId));
+    client.query(unlockExecution(executionId));
   });
 };
 
 // TODO use queryarguments to avoid sql injection
 const queryObject =
-  <T>(query: string, queryArguments?: QueryArguments) =>
-  (client: Transaction | PoolClient): Promise<QueryObjectResult<T>> => {
-    if (DEBUG_ENABLED) {
-      console.log(query);
-    }
-    return client.queryObject<T>(query, queryArguments);
+  <T extends QueryResultRow>(query: string, queryArguments?: string[]) =>
+  (client: PoolClient): Promise<QueryResult<T>> => {
+    return client.query<T, string[]>(query, queryArguments);
   };
 
 const eventsFor = (
@@ -129,21 +114,15 @@ const executionsFor =
         exec: (db: Execution) => Promise<TResult>,
       ): Promise<TResult> => {
         return await useClient(async (client) => {
-          if (!isClient(client)) {
-            const execDB = executionsFor(apply(client));
-            return await exec(execDB(executionId));
-          }
-          const transaction = client.createTransaction("transaction", {
-            isolation_level: "repeatable_read",
-          });
-          await transaction.begin();
+          await client.query("BEGIN");
+          await client.query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ");
           try {
-            const execDB = executionsFor(apply(transaction));
+            const execDB = executionsFor(apply(client));
             const result = await exec(execDB(executionId));
-            await transaction.commit();
+            await client.query("COMMIT");
             return result;
           } catch (e) {
-            await transaction.rollback();
+            await client.query("ROLLBACK");
             throw e;
           }
         });

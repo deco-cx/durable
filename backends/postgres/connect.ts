@@ -1,4 +1,4 @@
-import { Pool, PoolClient } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
+import { Pool, PoolClient } from "pg";
 import { PromiseOrValue } from "../../promise.ts";
 
 class PoolInstance {
@@ -10,7 +10,7 @@ class PoolInstance {
     if (!PoolInstance.instance) {
       const DEFAULT_POOL_SIZE = 5;
       const poolSize = DEFAULT_POOL_SIZE;
-      PoolInstance.instance = new Pool({}, poolSize, true);
+      PoolInstance.instance = new Pool({ max: poolSize });
     }
     return PoolInstance.instance;
   }

@@ -1,9 +1,6 @@
-import {
-  Env,
-  ExecutionEvent,
-} from "../../cloudflare/durable-workers/src/worker.ts";
 import { PromiseOrValue } from "../../promise.ts";
 import { HistoryEvent } from "../../runtime/core/events.ts";
+import { Env, ExecutionEvent } from "../../src/worker.ts";
 import {
   DB,
   Events,

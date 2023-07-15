@@ -1,4 +1,4 @@
-import { pLimit } from "./p-limit.js";
+import pLimit from "p-limit";
 import { Arg } from "./types.ts";
 
 /**

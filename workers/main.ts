@@ -1,7 +1,8 @@
-import { Event, Queue } from "../async.js";
+import { Event } from "../async/event.js";
 
 import { postgres } from "../backends/postgres/db.ts";
 
+import { Queue } from "../async/queue.ts";
 import { DB, Execution, WorkflowExecution } from "../backends/backend.ts";
 import { Metadata, WorkflowContext } from "../context.ts";
 import {
@@ -50,7 +51,7 @@ async function* executionsGenerator(
       cancellation.wait(),
     ]);
 
-    if (executionIds == true) {
+    if (typeof executionIds === "boolean") {
       break;
     }
 
@@ -192,12 +193,12 @@ const run = async (
   { cancellation, concurrency }: HandlerOpts,
 ) => {
   const workerCount = concurrency ?? 1;
-  const q = new Queue(workerCount);
+  const q = new Queue<WorkItem<string>>();
   await startWorkers(
     workflowHandler(db, registry),
     executionsGenerator(
       db,
-      () => workerCount - q.qsize(),
+      () => workerCount - q.size,
       cancellation ?? new Event(),
     ),
     workerCount,
@@ -206,13 +207,13 @@ const run = async (
 };
 
 export const start = async (db?: DB, registry?: WorkflowRegistry) => {
-  const WORKER_COUNT = tryParseInt(Deno.env.get("WORKERS_COUNT")) ?? 10;
+  const WORKER_COUNT = tryParseInt(process.env["WORKERS_COUNT"]) ?? 10;
   const cancellation = new Event();
-  Deno.addSignalListener("SIGINT", () => {
+  process.on("SIGINT", () => {
     cancellation.set();
   });
 
-  Deno.addSignalListener("SIGTERM", () => {
+  process.on("SIGTERM", () => {
     cancellation.set();
   });
 
@@ -221,9 +222,5 @@ export const start = async (db?: DB, registry?: WorkflowRegistry) => {
     concurrency: WORKER_COUNT,
   });
   await cancellation.wait();
-  Deno.exit(0);
+  process.exit(0);
 };
-
-if (import.meta.main) {
-  await start();
-}

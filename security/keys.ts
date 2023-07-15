@@ -4,8 +4,8 @@ export const hash = "SHA-256";
 const PUBLIC_KEY_ENV_VAR = "WORKERS_PUBLIC_KEY";
 const PRIVATE_KEY_ENV_VAR = "WORKERS_PRIVATE_KEY";
 
-const generateKeyPair = async () => {
-  const keyPair = await crypto.subtle.generateKey(
+const generateKeyPair = async (): Promise<[JsonWebKey, JsonWebKey]> => {
+  const keyPair: CryptoKeyPair = await crypto.subtle.generateKey(
     {
       name: alg,
       modulusLength: 2048,
@@ -14,17 +14,18 @@ const generateKeyPair = async () => {
     },
     true,
     ["sign", "verify"],
-  );
+  ) as CryptoKeyPair;
+
   return await Promise.all([
-    crypto.subtle.exportKey("jwk", keyPair.publicKey),
-    crypto.subtle.exportKey("jwk", keyPair.privateKey),
+    crypto.subtle.exportKey("jwk", keyPair.publicKey) as Promise<JsonWebKey>,
+    crypto.subtle.exportKey("jwk", keyPair.privateKey) as Promise<JsonWebKey>,
   ]);
 };
 
 export const parseJWK = (jwk: string): JsonWebKey => JSON.parse(atob(jwk));
 export const importJWK = (
   jwk: JsonWebKey,
-  usages?: KeyUsage[],
+  usages?: string[],
 ): Promise<CryptoKey> =>
   crypto.subtle.importKey(
     "jwk",
@@ -36,7 +37,7 @@ export const importJWK = (
 
 export const importJWKFromString = (
   jwk: string,
-  usages?: KeyUsage[],
+  usages?: string[],
 ): Promise<CryptoKey> =>
   importJWK(
     parseJWK(jwk),
@@ -44,8 +45,8 @@ export const importJWKFromString = (
   );
 
 const getOrGenerateKeyPair = async (): Promise<[JsonWebKey, JsonWebKey]> => {
-  const publicKeyEnvValue = undefined; //Deno.env.get(PUBLIC_KEY_ENV_VAR);
-  const privateKeyEnvValue = undefined; //Deno.env.get(PRIVATE_KEY_ENV_VAR);
+  const publicKeyEnvValue = process.env[PUBLIC_KEY_ENV_VAR];
+  const privateKeyEnvValue = process.env[PRIVATE_KEY_ENV_VAR];
   if (!publicKeyEnvValue || !privateKeyEnvValue) {
     return await generateKeyPair();
   }
@@ -61,19 +62,3 @@ export const getKeyPair = async () => {
   keys ??= getOrGenerateKeyPair();
   return await keys;
 };
-// rotate keys if necessary
-if (import.meta.main) {
-  const [kpub, kprivate] = await generateKeyPair();
-  const pubKeyB64 = btoa(JSON.stringify(kpub));
-  const privaKeyB64 = btoa(JSON.stringify(kprivate));
-  const command = new Deno.Command("flyctl", {
-    args: [
-      "secrets",
-      "set",
-      `${PUBLIC_KEY_ENV_VAR}=${pubKeyB64}`,
-      `${PRIVATE_KEY_ENV_VAR}=${privaKeyB64}`,
-    ],
-  });
-  const process = command.spawn();
-  await process.status;
-}
