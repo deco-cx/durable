@@ -28,14 +28,52 @@ export const buildRoutes = (wkflow: Workflow): Routes => {
     "/pending": {
       "POST": async (req: Request) => {
         const body: { events: HistoryEvent[] } = await req.json();
-        await wkflow.handler(...body.events);
+        await wkflow.execution.pending.add(...body.events);
+        wkflow.state.waitUntil(wkflow.handler(true));
         return new Response(JSON.stringify({}), { status: 200 });
+      },
+      "GET": async (_req: Request) => {
+        const search = new URL(_req.url).searchParams;
+        let pagination = undefined;
+        if (search.has("page")) {
+          pagination = { page: +search.get("page")! };
+        }
+        if (search.has("pageSize")) {
+          pagination = {
+            ...(pagination ?? {}),
+            pageSize: +search.get("pageSize")!,
+          };
+        }
+
+        return new Response(
+          JSON.stringify(
+            await wkflow.execution.pending.get(
+              pagination ?? { page: 0, pageSize: 10 },
+            ),
+          ),
+          { status: 200 },
+        );
       },
     },
     "/history": {
       "GET": async (_req: Request) => {
+        const search = new URL(_req.url).searchParams;
+        let pagination = undefined;
+        if (search.has("page")) {
+          pagination = { page: +search.get("page")! };
+        }
+        if (search.has("pageSize")) {
+          pagination = {
+            ...(pagination ?? {}),
+            pageSize: +search.get("pageSize")!,
+          };
+        }
         return new Response(
-          JSON.stringify(await wkflow.execution.history.get()),
+          JSON.stringify(
+            await wkflow.execution.history.get(
+              pagination ?? { page: 0, pageSize: 10 },
+            ),
+          ),
           { status: 200 },
         );
       },
@@ -64,7 +102,7 @@ export const router = (routes: Routes): Handler => {
 export class Workflow {
   state: DurableObjectState;
   execution: Execution;
-  handler: (...events: HistoryEvent[]) => Promise<void>;
+  handler: (allowUnconfirmed?: boolean) => Promise<void>;
   router: Handler;
 
   constructor(state: DurableObjectState, _env: Env) {
@@ -77,9 +115,9 @@ export class Workflow {
         buildWorkflowRegistry(),
       ]);
       // After initialization, future reads do not need to access storage.
-      this.handler = (...newEvents: HistoryEvent[]) => {
+      this.handler = (allowUnconfirmed = false) => {
         return runWorkflow(
-          durableExecution(this.state.storage, newEvents),
+          durableExecution(this.state.storage, allowUnconfirmed),
           registry,
         );
       };

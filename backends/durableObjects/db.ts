@@ -25,22 +25,26 @@ export interface CollectionStorage<T extends readonly Identifiable[]> {
 export const useSingleton = <T>(
   key: string,
   durable: DurableObjectTransaction | DurableObjectStorage,
+  allowUnconfirmed = false,
 ): SingletonStorage<T> => {
   return {
     get: () => durable.get(key),
-    put: (value: T) => durable.put(key, value),
+    put: (value: T) => durable.put(key, value, { allowUnconfirmed }),
   };
 };
 
 export const useCollection = <T extends readonly Identifiable[]>(
   prefix: string,
   durable: DurableObjectTransaction | DurableObjectStorage,
+  allowUnconfirmed = false,
 ): CollectionStorage<T> => {
   const itemId = (item: Identifiable) => `${prefix}-${item.id}`;
   return {
     add: async (...items: T): Promise<void> => {
       await Promise.all(
-        items.map((item) => durable.put(itemId(item), item)),
+        items.map((item) => durable.put(itemId(item), item), {
+          allowUnconfirmed,
+        }),
       );
     },
     get: async (
@@ -62,7 +66,7 @@ export const useCollection = <T extends readonly Identifiable[]>(
       return items;
     },
     del: async (...items: T): Promise<void> => {
-      await durable.delete(items.map(itemId));
+      await durable.delete(items.map(itemId), { allowUnconfirmed });
     },
   };
 };
@@ -79,96 +83,110 @@ const sortHistoryEventByDate = (
 
 export const durableExecution = (
   db: DurableObjectTransaction | DurableObjectStorage,
-  transientEvents?: HistoryEvent[],
+  allowUnconfirmed = false,
 ) => {
   const executions = useSingleton<WorkflowExecution>(
     Keys.execution,
     db,
+    allowUnconfirmed,
   );
-  const pending = useCollection<HistoryEvent[]>(Keys.pending, db);
-  const history = useCollection<HistoryEvent[]>(Keys.history, db);
+  const pending = useCollection<HistoryEvent[]>(
+    Keys.pending,
+    db,
+    allowUnconfirmed,
+  );
+  const history = useCollection<HistoryEvent[]>(
+    Keys.history,
+    db,
+    allowUnconfirmed,
+  );
   return {
     get: executions.get.bind(executions),
     create: executions.put.bind(executions),
     update: executions.put.bind(executions),
     pending: {
-      get: async () => {
-        const evts = await pending.get();
-        return [...transientEvents ?? [], ...evts.values()].sort(
+      get: async (paginationParams?: PaginationParams) => {
+        const evts = await pending.get(paginationParams);
+        return [...evts.values()].sort(
           sortHistoryEventByDate,
         );
       },
       add: async (...events: HistoryEvent[]) => {
-        // set current alarm if the any event should occur before the current alarm.
-        const initialCurrentAlarm: number | null = await db.getAlarm();
-        let currentAlarm = initialCurrentAlarm;
+        let lessyVisibleAt: number | null = null;
         for (const event of events) {
           event.visibleAt = event.visibleAt
             ? new Date(event.visibleAt)
             : event.visibleAt;
           if (
             event.visibleAt &&
-            (currentAlarm === null || event.visibleAt.getTime() < currentAlarm)
+            (lessyVisibleAt === null ||
+              event.visibleAt.getTime() < lessyVisibleAt)
           ) {
-            currentAlarm = event.visibleAt.getTime();
+            lessyVisibleAt = event.visibleAt.getTime();
           }
         }
         const promises: Promise<void>[] = [pending.add(...events)];
-        if (initialCurrentAlarm !== currentAlarm && currentAlarm) {
-          promises.push(db.setAlarm(currentAlarm));
+
+        const currentAlarm: number | null = await db.getAlarm();
+        if (
+          lessyVisibleAt &&
+          (currentAlarm === null || currentAlarm < lessyVisibleAt)
+        ) {
+          promises.push(db.setAlarm(lessyVisibleAt, { allowUnconfirmed }));
         }
         await Promise.all(promises);
       },
       del: async (...events: HistoryEvent[]) => {
-        const keys = events.map((event) => event.id);
-        const beingDeleted: Record<string, boolean> = keys.reduce(
-          (acc, key) => {
-            acc[key] = true;
-            return acc;
-          },
-          {} as Record<string, boolean>,
-        );
-        const deletePromise = pending.del(...events);
-        const [current, initialCurrentAlarm] = await Promise.all([
-          pending.get(),
-          db.getAlarm(),
-        ]);
+        await pending.del(...events);
+        const initialCurrentAlarmPromise = db.getAlarm();
 
+        const current = await pending.get();
+
+        if (current.size === 0) { // no pending events
+          await db.deleteAlarm({ allowUnconfirmed });
+          return;
+        }
+
+        const initialCurrentAlarm = await initialCurrentAlarmPromise;
         let currentAlarm = initialCurrentAlarm;
 
-        for (const [key, event] of Object.entries(current)) {
-          if (!beingDeleted[key]) { // not being deleted
-            event.visibleAt = event.visibleAt
-              ? new Date(event.visibleAt)
-              : event.visibleAt;
-            if (
-              event.visibleAt &&
-              (
-                currentAlarm === null ||
-                event.visibleAt.getTime() < currentAlarm
-              )
-            ) {
-              currentAlarm = event.visibleAt.getTime();
-            }
+        for (const event of current.values()) {
+          event.visibleAt = event.visibleAt
+            ? new Date(event.visibleAt)
+            : event.visibleAt;
+          if (
+            event.visibleAt &&
+            (
+              currentAlarm === null ||
+              event.visibleAt.getTime() < currentAlarm
+            )
+          ) {
+            currentAlarm = event.visibleAt.getTime();
           }
         }
-        const promises: Promise<void>[] = [deletePromise];
         if (initialCurrentAlarm !== currentAlarm && currentAlarm) {
-          promises.push(db.setAlarm(currentAlarm));
+          await db.setAlarm(currentAlarm, { allowUnconfirmed });
         }
-
-        await Promise.all(promises);
       },
     },
     history: {
       ...history,
       get: async (pagination?: PaginationParams) => {
-        const reverse = pagination !== undefined;
+        const reverse =
+          (pagination?.page ?? pagination?.pageSize) !== undefined;
         const hist = await history.get({ ...(pagination ?? {}), reverse });
-        return [...hist.values()].sort((a, b) => {
-          const resp = a.seq - b.seq;
-          return reverse ? -resp : resp;
+        const values = [...hist.values()].sort((histA, histB) => {
+          const diff = histA.seq - histB.seq;
+          return reverse ? -diff : diff;
         });
+        if (reverse) {
+          const page = pagination?.page ?? 0;
+          const pageSize = pagination?.pageSize ?? 10;
+          const start = page * pageSize;
+          const end = start + pageSize;
+          return values.slice(start, end);
+        }
+        return values;
       },
       del: async () => {}, // del is not supported on history
     },
@@ -178,11 +196,7 @@ export const durableExecution = (
       if (!isDurableObjStorage(db)) {
         throw new Error("cannot create inner transactions");
       }
-      return (await db.transaction(
-        async (inner: DurableObjectTransaction) => {
-          return await f(durableExecution(inner, transientEvents));
-        },
-      )) as T;
+      return await f(durableExecution(db, allowUnconfirmed));
     },
   };
 };
@@ -195,11 +209,10 @@ const isDurableObjStorage = (
 
 export const dbFor = (
   db: DurableObjectTransaction | DurableObjectStorage,
-  transientEvents?: HistoryEvent[],
 ): DB => {
   return {
     execution: (_executionId: string) => {
-      return durableExecution(db, transientEvents);
+      return durableExecution(db);
     },
     pendingExecutions: () => {
       return Promise.resolve([]);

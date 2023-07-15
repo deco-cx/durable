@@ -60,6 +60,15 @@ export const getRouter = async (
     await registry.verifySignature(execution.alias, req.raw);
     return Response.json(execution);
   });
+  app.get("/executions/:id/_touch", async ({ req }) => {
+    const { id } = req.param();
+    const execution = await service.getExecution(id);
+    if (execution === undefined) {
+      return Response.json({}, { status: 403 }); // do not expose not found errors.
+    }
+    await service.touchExecution(id);
+    return new Response(null, { status: 204 });
+  });
   app.get("/executions/:id/history", async ({ req: _req }) => {
     const req = _req.raw;
     const { id } = _req.param();

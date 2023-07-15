@@ -74,6 +74,15 @@ export class WorkflowService {
   }
 
   /**
+   * Make the execution run.
+   */
+  public async touchExecution(
+    executionId: string,
+  ): Promise<void> {
+    await this.backend.execution(executionId).pending.add();
+  }
+
+  /**
    * Signal the workflow with the given signal and payload.
    */
   public async signalExecution(

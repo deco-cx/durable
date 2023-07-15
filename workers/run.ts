@@ -48,24 +48,29 @@ async (
       !state.hasFinished &&
       !state.current.isReplaying
     ) {
-      const newEvents = await handleCommand(state.current, state);
-      if (newEvents.length === 0) {
-        break;
-      }
-      for (const newEvent of newEvents) {
-        if (newEvent.visibleAt === undefined) {
-          state = apply(state, newEvent);
-          pendingEvents.push(newEvent);
-          if (
-            state.canceledAt === undefined &&
-            !state.hasFinished &&
-            !state.current.isReplaying
-          ) {
-            break;
-          }
-        } else {
-          asPendingEvents.push(newEvent);
+      try {
+        const newEvents = await handleCommand(state.current, state);
+        if (newEvents.length === 0) {
+          break;
         }
+        for (const newEvent of newEvents) {
+          if (newEvent.visibleAt === undefined) {
+            state = apply(state, newEvent);
+            pendingEvents.push(newEvent);
+            if (
+              state.canceledAt === undefined &&
+              !state.hasFinished &&
+              !state.current.isReplaying
+            ) {
+              break;
+            }
+          } else {
+            asPendingEvents.push(newEvent);
+          }
+        }
+      } catch (err) {
+        console.log("stopping loop because of err", err);
+				break;
       }
     }
 

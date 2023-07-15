@@ -1,6 +1,6 @@
 import { PromiseOrValue } from "../../promise.ts";
 import { HistoryEvent } from "../../runtime/core/events.ts";
-import { Env, ExecutionEvent } from "../../src/worker.ts";
+import { Env } from "../../src/worker.ts";
 import {
   DB,
   Events,
@@ -19,11 +19,9 @@ const parseOrThrow = <T>() => async (resp: Response) => {
   throw new Error(`http error ${resp.status} ${await resp.text()}`);
 };
 const eventsFor = (
-  executionId: string,
   origin: string,
   route: "/history" | "/pending",
   durable: DurableObjectStub,
-  eventsQ: Queue<ExecutionEvent>,
 ): Events => {
   return {
     get: (pagination?: PaginationParams) => {
@@ -39,14 +37,6 @@ const eventsFor = (
     del: async () => {},
     add: async (...events: HistoryEvent[]) => {
       if (route === "/pending") {
-        await eventsQ.send({
-          executionId,
-          origin,
-          payload: {
-            events,
-          },
-        });
-      } else {
         await durable.fetch(
           withOrigin(
             "/pending",
@@ -60,10 +50,8 @@ const eventsFor = (
 };
 
 const executionFor = (
-  executionId: string,
   origin: string,
   durable: DurableObjectStub,
-  events: Queue<ExecutionEvent>,
 ): Execution => {
   const useMethod = (method: string) => (workflow: WorkflowExecution) => {
     return durable.fetch(withOrigin("/", origin), {
@@ -77,12 +65,12 @@ const executionFor = (
         parseOrThrow<WorkflowExecution>(),
       );
     },
-    pending: eventsFor(executionId, origin, "/pending", durable, events),
-    history: eventsFor(executionId, origin, "/history", durable, events),
+    pending: eventsFor(origin, "/pending", durable),
+    history: eventsFor(origin, "/history", durable),
     update: useMethod("PUT"),
     create: useMethod("POST"),
     withinTransaction: async <T>(f: (db: Execution) => PromiseOrValue<T>) => {
-      return await f(executionFor(executionId, origin, durable, events));
+      return await f(executionFor(origin, durable));
     },
   };
 };
@@ -90,7 +78,7 @@ export const dbForEnv = (env: Env, origin: string): DB => {
   return {
     execution: (executionId: string) => {
       const workflow = env.WORKFLOWS.get(env.WORKFLOWS.idFromName(executionId));
-      return executionFor(executionId, origin, workflow, env.EVENTS);
+      return executionFor(origin, workflow);
     },
     pendingExecutions: () => {
       return Promise.resolve([]);
