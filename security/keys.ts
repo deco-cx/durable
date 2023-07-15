@@ -45,8 +45,21 @@ export const importJWKFromString = (
   );
 
 const getOrGenerateKeyPair = async (): Promise<[JsonWebKey, JsonWebKey]> => {
-  const publicKeyEnvValue = process.env[PUBLIC_KEY_ENV_VAR];
-  const privateKeyEnvValue = process.env[PRIVATE_KEY_ENV_VAR];
+  const hasProcess = typeof process !== "undefined";
+  // @ts-ignore
+  const publicKeyEnvValue = typeof Deno !== "undefined"
+    // @ts-ignore
+    ? Deno.env.get(PUBLIC_KEY_ENV_VAR)
+    : hasProcess
+    ? process.env[PUBLIC_KEY_ENV_VAR]
+    : undefined;
+  // @ts-ignore
+  const privateKeyEnvValue = typeof Deno !== "undefined"
+    // @ts-ignore
+    ? Deno.env.get(PRIVATE_KEY_ENV_VAR)
+    : hasProcess
+    ? process.env[PRIVATE_KEY_ENV_VAR]
+    : undefined;
   if (!publicKeyEnvValue || !privateKeyEnvValue) {
     return await generateKeyPair();
   }

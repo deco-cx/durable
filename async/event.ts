@@ -1,4 +1,4 @@
-import { Deferred, deferred } from "./deferred";
+import { Deferred, deferred } from "./deferred.ts";
 
 export class Event {
   #waiter: Deferred<unknown> | null;
