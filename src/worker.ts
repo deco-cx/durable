@@ -18,16 +18,8 @@ export default {
     env: Env,
     ctx: ExecutionContext,
   ): Promise<Response> {
-    const url = new URL(req.url);
-    const db = dbForEnv(env, "http://localhost");
+    const db = dbForEnv(env);
     const router = await getRouter(new Hono(), db, registry);
     return router.fetch(req, env, ctx);
-  },
-  async scheduled(
-    controller: ScheduledController,
-    env: Env,
-    ctx: ExecutionContext,
-  ) {
-    console.log("cron processed");
   },
 };

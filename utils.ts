@@ -57,10 +57,8 @@ export const singleFlight = <T>(): SingleFlight<T> => {
   };
 };
 
-export const setIntervalFlight = (
-  f: () => Promise<void>,
-  interval: number,
-): number => {
-  const sf = singleFlight();
-  return setInterval(() => sf.do("single", f), interval);
-};
+export function secondsFromNow(seconds: number) {
+  const date = new Date();
+  date.setSeconds(date.getSeconds() + seconds);
+  return date;
+}

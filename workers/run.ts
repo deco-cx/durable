@@ -5,7 +5,7 @@ import { Arg } from "../types.ts";
 import { WorkflowExecution } from "../backends/backend.ts";
 import { Metadata, WorkflowContext } from "../context.ts";
 import { handleCommand } from "../runtime/core/commands.ts";
-import { apply, HistoryEvent } from "../runtime/core/events.ts";
+import { apply, HistoryEvent, newEvent } from "../runtime/core/events.ts";
 import { WorkflowState, zeroState } from "../runtime/core/state.ts";
 import {
   Workflow,
@@ -43,6 +43,7 @@ async (
     ].reduce(apply, zeroState(workflowFn));
 
     const asPendingEvents: HistoryEvent[] = [];
+    let errMsg: null | string = null;
     while (
       state.canceledAt === undefined &&
       !state.hasFinished &&
@@ -69,8 +70,9 @@ async (
           }
         }
       } catch (err) {
+        errMsg = (err as Error)?.message ?? "generic error happened";
         console.log("stopping loop because of err", err);
-				break;
+        break;
       }
     }
 
@@ -82,6 +84,10 @@ async (
         ...pendingEvents.map((event) => ({ ...event, seq: ++lastSeq })),
       ),
     ];
+
+    if (errMsg && asPendingEvents.length === 0) {
+      asPendingEvents.push({ ...newEvent(), type: "no_op", reason: errMsg });
+    }
 
     if (asPendingEvents.length !== 0) {
       opts.push(execution.pending.add(...asPendingEvents));

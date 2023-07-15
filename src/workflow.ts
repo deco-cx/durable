@@ -3,6 +3,7 @@ import { durableExecution } from "../backends/durableObjects/db.ts";
 import { PromiseOrValue } from "../promise.ts";
 import { buildWorkflowRegistry } from "../registry/registries.ts";
 import { HistoryEvent } from "../runtime/core/events.ts";
+import { secondsFromNow } from "../utils.ts";
 import { runWorkflow } from "../workers/run.ts";
 import { Env } from "./worker.ts";
 
@@ -125,7 +126,10 @@ export class Workflow {
   }
 
   async alarm() {
-    await this.handler();
+    await this.handler().catch(async (err) => {
+      console.error("alarm error", err);
+      await this.state.storage.setAlarm(secondsFromNow(15));
+    });
   }
 
   // Handle HTTP requests from clients.

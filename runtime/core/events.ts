@@ -14,6 +14,11 @@ export interface Event {
   visibleAt?: Date;
 }
 
+export interface NoOpEvent extends Event {
+  type: "no_op";
+  reason?: string;
+}
+
 /**
  * WorkflowStartedEvent is the event that should start the workflow
  */
@@ -107,6 +112,7 @@ export interface LocalActivityCalledEvent<TResult = unknown> extends Event {
  * All possible types of events.
  */
 export type HistoryEvent =
+  | NoOpEvent
   | WorkflowStartedEvent
   | WorkflowFinishedEvent
   | WorkflowCanceledEvent
@@ -326,6 +332,7 @@ const handlers: Record<HistoryEvent["type"], EventHandler<any>> = {
   signal_received,
   local_activity_called,
   invoke_http_response,
+  no_op,
 };
 
 export function apply<TArgs extends Arg = Arg, TResult = unknown>(
