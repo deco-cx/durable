@@ -13,7 +13,22 @@ export type {
   Command,
   InvokeHttpEndpointCommand,
 } from "../../runtime/core/commands.ts";
-export type { HistoryEvent } from "../../runtime/core/events.ts";
+export type {
+  ActivityCompletedEvent,
+  ActivityStartedEvent,
+  Event,
+  HistoryEvent,
+  InvokeHttpResponseEvent,
+  LocalActivityCalledEvent,
+  NoOpEvent,
+  SignalReceivedEvent,
+  TimerFiredEvent,
+  TimerScheduledEvent,
+  WaitingSignalEvent,
+  WorkflowCanceledEvent,
+  WorkflowFinishedEvent,
+  WorkflowStartedEvent,
+} from "../../runtime/core/events.ts";
 export type { WorkflowGen } from "../../runtime/core/workflow.ts";
 export {
   asChannel,
