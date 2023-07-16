@@ -1,9 +1,5 @@
 import Emittery from "emittery";
-import {
-  Execution,
-  PaginationParams,
-  WorkflowExecution,
-} from "../backends/backend.ts";
+import { PaginationParams, WorkflowExecution } from "../backends/backend.ts";
 import { durableExecution } from "../backends/durableObjects/db.ts";
 import { PromiseOrValue } from "../promise.ts";
 import { buildWorkflowRegistry } from "../registry/registries.ts";
@@ -36,7 +32,10 @@ export const buildRoutes = (wkflow: Workflow): Routes => {
     "/pending": {
       "POST": async (req: Request) => {
         const body: { events: HistoryEvent[] } = await req.json();
-        await wkflow.execution.pending.add(...body.events);
+        await Promise.all([
+          wkflow.execution.pending.add(...body.events),
+          wkflow.state.storage.setAlarm(secondsFromNow(15)), // we set as a safety guard to make sure that the workflow will execute in a at-least-once fashion
+        ]);
         wkflow.state.waitUntil(wkflow.handler(true));
         return new Response(JSON.stringify({}), { status: 200 });
       },
@@ -188,6 +187,8 @@ export class Workflow {
             { allowUnconfirmed },
           ),
           registry,
+        ).then(this.onHandleSuccess(allowUnconfirmed)).catch(
+          this.onHandleError(allowUnconfirmed),
         );
       };
     });
@@ -200,31 +201,43 @@ export class Workflow {
     return execution?.status === "completed" ||
       execution?.status === "canceled";
   }
-  async addRetries() {
+  async addRetries(allowUnconfirmed = false) {
     let currentRetries = await this.state.storage.get<number>("retries") ?? 0;
-    await this.state.storage.put("retries", ++currentRetries);
+    await this.state.storage.put("retries", ++currentRetries, {
+      allowUnconfirmed,
+    });
     return currentRetries;
   }
-  async zeroRetries() {
-    await this.state.storage.put("retries", 0);
+  async zeroRetries(allowUnconfirmed = false) {
+    await this.state.storage.put("retries", 0, { allowUnconfirmed });
   }
-  async onAlarmError(err: any) {
-    try {
-      console.error("alarm error", JSON.stringify(err));
-    } catch {}
-    const retryCount = await this.addRetries();
-    if (retryCount >= MAX_RETRY_COUNT) {
-      console.log(
-        `workflow ${(await this.execution.get())
-          ?.id} has reached a maximum retry count of ${MAX_RETRY_COUNT}`,
-      );
-      await this.zeroRetries();
-      return; // returning OK so the alarm will not be retried
-    }
-    await this.state.storage.setAlarm(secondsFromNow(15));
+  onHandleError(allowUnconfirmed = false) {
+    return async (err: any) => {
+      const retryCount = await this.addRetries(allowUnconfirmed);
+      try {
+        console.error(
+          `handle error retry count ${retryCount}`,
+          JSON.stringify(err),
+        );
+      } catch {}
+      if (retryCount >= MAX_RETRY_COUNT) {
+        console.log(
+          `workflow ${(await this.execution.withGateOpts({ allowUnconfirmed })
+            .get())
+            ?.id} has reached a maximum retry count of ${MAX_RETRY_COUNT}`,
+        );
+        await this.zeroRetries(allowUnconfirmed);
+        return; // returning OK so the alarm will not be retried
+      }
+      await this.state.storage.setAlarm(secondsFromNow(15), {
+        allowUnconfirmed,
+      });
+    };
   }
-  async onAlarmSuccess() {
-    await this.zeroRetries();
+  onHandleSuccess(allowUnconfirmed = false) {
+    return async () => {
+      await this.zeroRetries(allowUnconfirmed);
+    };
   }
 
   async history(pagination?: PaginationParams) {
@@ -233,12 +246,14 @@ export class Workflow {
   }
 
   async alarm() {
-    console.log(
-      `alarm for ${(await this.execution.get())?.id}`,
-    );
-    await this.handler().then(this.onAlarmSuccess.bind(this)).catch(
-      this.onAlarmError.bind(this),
-    );
+    const executionPromise = this.execution.withGateOpts({
+      allowConcurrency: true,
+    }).get();
+    try {
+      await this.handler();
+    } finally {
+      console.log(`alarm for execution ${(await executionPromise)?.id}`);
+    }
   }
 
   // Handle HTTP requests from clients.

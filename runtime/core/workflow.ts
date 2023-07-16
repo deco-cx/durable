@@ -80,7 +80,7 @@ async (
     ].reduce(apply, zeroState(workflowFn));
 
     const asPendingEvents: HistoryEvent[] = [];
-    let errMsg: null | string = null;
+    let loopErr: null | any = null;
     while (
       state.canceledAt === undefined &&
       !state.hasFinished &&
@@ -107,7 +107,7 @@ async (
           }
         }
       } catch (err) {
-        errMsg = (err as Error)?.message ?? "generic error happened";
+        loopErr = err;
         console.log("stopping loop because of err", err);
         break;
       }
@@ -121,10 +121,6 @@ async (
         ...pendingEvents.map((event) => ({ ...event, seq: ++lastSeq })),
       ),
     ];
-
-    if (errMsg && asPendingEvents.length === 0) {
-      asPendingEvents.push({ ...newEvent(), type: "no_op", reason: errMsg });
-    }
 
     if (asPendingEvents.length !== 0) {
       opts.push(execution.pending.add(...asPendingEvents));
@@ -140,6 +136,9 @@ async (
     );
 
     await Promise.all(opts);
+    if (loopErr !== null) {
+      throw loopErr;
+    }
   } finally {
     workflow?.dispose?.();
   }

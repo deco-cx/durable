@@ -1,7 +1,6 @@
 import Emittery from "emittery";
 import { PromiseOrValue } from "../../promise.ts";
 import { HistoryEvent } from "../../runtime/core/events.ts";
-import { secondsFromNow } from "../../utils.ts";
 import {
   DB,
   Execution,
@@ -118,13 +117,11 @@ export const durableExecution = (
       },
       add: async (...events: HistoryEvent[]) => {
         let lessyVisibleAt: number | null = null;
-        let atLeastOneShouldBeExecutedNow = false;
         for (const event of events) {
           event.visibleAt = event.visibleAt
             ? new Date(event.visibleAt)
             : event.visibleAt;
 
-          atLeastOneShouldBeExecutedNow ||= !event.visibleAt;
           if (
             event.visibleAt &&
             (lessyVisibleAt === null ||
@@ -134,16 +131,6 @@ export const durableExecution = (
           }
         }
         const promises: Promise<void>[] = [pending.add(...events)];
-        if (atLeastOneShouldBeExecutedNow) {
-          promises.push(
-            db.setAlarm(secondsFromNow(15), {
-              allowUnconfirmed: gateOpts.allowUnconfirmed,
-            }),
-          );
-          await Promise.all(promises);
-          return;
-        }
-
         const currentAlarm: number | null = await db.getAlarm();
         if (
           lessyVisibleAt &&
