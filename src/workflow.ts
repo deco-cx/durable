@@ -233,7 +233,9 @@ export class Workflow {
   }
 
   async alarm() {
-    await this.handler().then(this.onAlarmSuccess).catch(this.onAlarmError);
+    await this.handler().then(this.onAlarmSuccess.bind(this)).catch(
+      this.onAlarmError.bind(this),
+    );
   }
 
   // Handle HTTP requests from clients.
