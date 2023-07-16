@@ -9,6 +9,10 @@ import {
   WorkflowExecution,
 } from "../backend.ts";
 
+export interface GateOptions {
+  allowUnconfirmed?: boolean;
+  allowConcurrency?: boolean;
+}
 export interface SingletonStorage<T> {
   get: () => Promise<T | undefined>;
   put: (value: T) => Promise<void>;
@@ -27,7 +31,7 @@ export interface CollectionStorage<T extends readonly Identifiable[]> {
 export const useSingleton = <T>(
   key: string,
   durable: DurableObjectTransaction | DurableObjectStorage,
-  allowUnconfirmed = false,
+  { allowUnconfirmed }: GateOptions = { allowUnconfirmed: false },
 ): SingletonStorage<T> => {
   return {
     get: () => durable.get(key),
@@ -38,7 +42,7 @@ export const useSingleton = <T>(
 export const useCollection = <T extends readonly Identifiable[]>(
   prefix: string,
   durable: DurableObjectTransaction | DurableObjectStorage,
-  allowUnconfirmed = false,
+  { allowUnconfirmed }: GateOptions = { allowUnconfirmed: false },
 ): CollectionStorage<T> => {
   const itemId = (item: Identifiable) => `${prefix}-${item.id}`;
   return {
@@ -82,24 +86,26 @@ const sortHistoryEventByDate = (
 export const durableExecution = (
   db: DurableObjectTransaction | DurableObjectStorage,
   historyStream: Emittery<{ "history": HistoryEvent[] }>,
-  allowUnconfirmed = false,
+  gateOpts: GateOptions = { allowUnconfirmed: false },
 ) => {
   const executions = useSingleton<WorkflowExecution>(
     Keys.execution,
     db,
-    allowUnconfirmed,
+    gateOpts,
   );
   const pending = useCollection<HistoryEvent[]>(
     Keys.pending,
     db,
-    allowUnconfirmed,
+    gateOpts,
   );
   const history = useCollection<HistoryEvent[]>(
     Keys.history,
     db,
-    allowUnconfirmed,
+    gateOpts,
   );
   return {
+    withGateOpts: (gateOpts: GateOptions) =>
+      durableExecution(db, historyStream, gateOpts),
     get: executions.get.bind(executions),
     create: executions.put.bind(executions),
     update: executions.put.bind(executions),
@@ -129,7 +135,11 @@ export const durableExecution = (
         }
         const promises: Promise<void>[] = [pending.add(...events)];
         if (atLeastOneShouldBeExecutedNow) {
-          promises.push(db.setAlarm(secondsFromNow(15), { allowUnconfirmed }));
+          promises.push(
+            db.setAlarm(secondsFromNow(15), {
+              allowUnconfirmed: gateOpts.allowUnconfirmed,
+            }),
+          );
           await Promise.all(promises);
           return;
         }
@@ -139,7 +149,11 @@ export const durableExecution = (
           lessyVisibleAt &&
           (currentAlarm === null || currentAlarm < lessyVisibleAt)
         ) {
-          promises.push(db.setAlarm(lessyVisibleAt, { allowUnconfirmed }));
+          promises.push(
+            db.setAlarm(lessyVisibleAt, {
+              allowUnconfirmed: gateOpts.allowUnconfirmed,
+            }),
+          );
         }
         await Promise.all(promises);
       },
@@ -150,7 +164,7 @@ export const durableExecution = (
         const current = await pending.get();
 
         if (current.size === 0) { // no pending events
-          await db.deleteAlarm({ allowUnconfirmed });
+          await db.deleteAlarm({ allowUnconfirmed: gateOpts.allowUnconfirmed });
           return;
         }
 
@@ -175,7 +189,9 @@ export const durableExecution = (
           initialCurrentAlarm !== currentAlarm && currentAlarm &&
           (!initialCurrentAlarm || currentAlarm < initialCurrentAlarm)
         ) {
-          await db.setAlarm(currentAlarm, { allowUnconfirmed });
+          await db.setAlarm(currentAlarm, {
+            allowUnconfirmed: gateOpts.allowUnconfirmed,
+          });
         }
       },
     },
@@ -212,7 +228,7 @@ export const durableExecution = (
       if (!isDurableObjStorage(db)) {
         throw new Error("cannot create inner transactions");
       }
-      return await f(durableExecution(db, historyStream, allowUnconfirmed));
+      return await f(durableExecution(db, historyStream, gateOpts));
     },
   };
 };

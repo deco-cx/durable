@@ -72,10 +72,38 @@ export const buildRoutes = (wkflow: Workflow): Routes => {
           const { readable, writable } = new TransformStream();
           (async () => {
             const encoder = new TextEncoder();
+            const [currentHistory, isCompleted] = await Promise.all([
+              wkflow.history(),
+              wkflow.isCompleted(),
+            ]);
             const writer = writable.getWriter();
+            await writer.write(encoder.encode(JSON.stringify(currentHistory)));
+            if (
+              isCompleted
+            ) {
+              return;
+            }
+            let sentEvents: Record<string, boolean> = {};
+
+            for (const event of currentHistory) {
+              sentEvents[event.id] = true;
+            }
+            const withoutSentEvents = (event: HistoryEvent): boolean => {
+              const sent = sentEvents[event.id];
+              sentEvents[event.id] = true;
+              return !sent;
+            };
 
             for await (const events of eventStream) {
-              await writer.write(encoder.encode(JSON.stringify(events[1])));
+              await writer.write(
+                encoder.encode(
+                  JSON.stringify(events[1].filter(withoutSentEvents)),
+                ),
+              );
+              if (await wkflow.isCompleted()) {
+                writer.close();
+                return;
+              }
             }
           })();
           return new Response(readable, {
@@ -99,7 +127,7 @@ export const buildRoutes = (wkflow: Workflow): Routes => {
         }
         return new Response(
           JSON.stringify(
-            await wkflow.execution.history.get(
+            await dbWithConcurrencyAllowed.history.get(
               pagination ?? { page: 0, pageSize: 10 },
             ),
           ),
@@ -130,7 +158,7 @@ export const router = (routes: Routes): Handler => {
 
 export class Workflow {
   state: DurableObjectState;
-  execution: Execution;
+  execution: ReturnType<typeof durableExecution>;
   handler: (allowUnconfirmed?: boolean) => Promise<void>;
   router: Handler;
   historyStream: Emittery<{ "history": HistoryEvent[] }>;
@@ -151,12 +179,25 @@ export class Workflow {
           durableExecution(
             this.state.storage,
             this.historyStream,
-            allowUnconfirmed,
+            { allowUnconfirmed },
           ),
           registry,
         );
       };
     });
+  }
+  async isCompleted() {
+    const execution = await this.execution.withGateOpts({
+      allowConcurrency: true,
+    }).get();
+
+    return execution?.status === "completed" ||
+      execution?.status === "canceled";
+  }
+
+  async history() {
+    return await this.execution.withGateOpts({ allowConcurrency: true }).history
+      .get();
   }
 
   async alarm() {

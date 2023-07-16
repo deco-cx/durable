@@ -6,12 +6,14 @@ import {
   workflowHTTPHandler,
   workflowWebSocketHandler,
 } from "./handler.ts";
+export type { Pagination } from "../../api/service.ts";
 export type { WorkflowExecution } from "../../backends/backend.ts";
 export type { Metadata } from "../../context.ts";
 export type {
   Command,
   InvokeHttpEndpointCommand,
 } from "../../runtime/core/commands.ts";
+export type { HistoryEvent } from "../../runtime/core/events.ts";
 export type { WorkflowGen } from "../../runtime/core/workflow.ts";
 export {
   asChannel,
