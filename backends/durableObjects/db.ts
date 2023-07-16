@@ -7,6 +7,7 @@ import {
   PaginationParams,
   WorkflowExecution,
 } from "../backend.ts";
+import { secondsFromNow } from "../../utils.ts";
 
 export interface GateOptions {
   allowUnconfirmed?: boolean;
@@ -157,11 +158,14 @@ export const durableExecution = (
 
         const initialCurrentAlarm = await initialCurrentAlarmPromise;
         let currentAlarm = initialCurrentAlarm;
+        let atLeastOneShouldBeExecutedNow = false;
 
         for (const event of current.values()) {
           event.visibleAt = event.visibleAt
             ? new Date(event.visibleAt)
             : event.visibleAt;
+
+          atLeastOneShouldBeExecutedNow ||= !event.visibleAt;
           if (
             event.visibleAt &&
             (
@@ -171,6 +175,12 @@ export const durableExecution = (
           ) {
             currentAlarm = event.visibleAt.getTime();
           }
+        }
+        if (atLeastOneShouldBeExecutedNow) {
+          await db.setAlarm(secondsFromNow(15), {
+            allowUnconfirmed: gateOpts.allowUnconfirmed,
+          });
+          return;
         }
         if (
           initialCurrentAlarm !== currentAlarm && currentAlarm &&
