@@ -12,6 +12,8 @@ import { runWorkflow } from "../runtime/core/workflow.ts";
 import { secondsFromNow } from "../utils.ts";
 import { Env } from "./worker.ts";
 
+const MAX_RETRY_COUNT = 10;
+
 export type Handler = (request: Request) => PromiseOrValue<Response>;
 export type HTTPMethod = "GET" | "POST" | "PUT" | "HEAD" | "DELETE";
 export type Routes = Record<
@@ -198,6 +200,32 @@ export class Workflow {
     return execution?.status === "completed" ||
       execution?.status === "canceled";
   }
+  async addRetries() {
+    let currentRetries = await this.state.storage.get<number>("retries") ?? 0;
+    await this.state.storage.put("retries", ++currentRetries);
+    return currentRetries;
+  }
+  async zeroRetries() {
+    await this.state.storage.put("retries", 0);
+  }
+  async onAlarmError(err: any) {
+    try {
+      console.error("alarm error", JSON.stringify(err));
+    } catch {}
+    const retryCount = await this.addRetries();
+    if (retryCount >= MAX_RETRY_COUNT) {
+      console.log(
+        `workflow ${(await this.execution.get())
+          ?.id} has reached a maximum retry count of ${MAX_RETRY_COUNT}`,
+      );
+      await this.zeroRetries();
+      return; // returning OK so the alarm will not be retried
+    }
+    await this.state.storage.setAlarm(secondsFromNow(15));
+  }
+  async onAlarmSuccess() {
+    await this.zeroRetries();
+  }
 
   async history(pagination?: PaginationParams) {
     return await this.execution.withGateOpts({ allowConcurrency: true }).history
@@ -205,10 +233,7 @@ export class Workflow {
   }
 
   async alarm() {
-    await this.handler().catch(async (err) => {
-      console.error("alarm error", err);
-      await this.state.storage.setAlarm(secondsFromNow(15));
-    });
+    await this.handler().then(this.onAlarmSuccess).catch(this.onAlarmError);
   }
 
   // Handle HTTP requests from clients.
