@@ -1,8 +1,8 @@
 # https://docs.github.com/en/actions
 
-name: "Deploy"
+name: Deploy
 
-on: # yamllint disable-line rule:truthy
+on:
   push:
     branches:
       - main
@@ -17,5 +17,5 @@ jobs:
         uses: cloudflare/wrangler-action@2.0.0
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
-					accountId: ${{ secrets.CF_ACCOUNT_ID }}
+          accountId: ${{ secrets.CF_ACCOUNT_ID }}
 
