@@ -81,7 +81,7 @@ const Keys = {
 const sortHistoryEventByDate = (
   a: HistoryEvent,
   b: HistoryEvent,
-) => a.timestamp.getTime() - b.timestamp.getTime();
+) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
 
 export const durableExecution = (
   db: DurableObjectTransaction | DurableObjectStorage,
