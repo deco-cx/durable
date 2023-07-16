@@ -1,8 +1,8 @@
 export const alg = "RSASSA-PKCS1-v1_5";
 export const hash = "SHA-256";
 
-const PUBLIC_KEY_ENV_VAR = "WORKERS_PUBLIC_KEY";
-const PRIVATE_KEY_ENV_VAR = "WORKERS_PRIVATE_KEY";
+const PUBLIC_KEY_ENV_VAR = "WORKER_PUBLIC_KEY";
+const PRIVATE_KEY_ENV_VAR = "WORKER_PRIVATE_KEY";
 
 const generateKeyPair = async (): Promise<[JsonWebKey, JsonWebKey]> => {
   const keyPair: CryptoKeyPair = await crypto.subtle.generateKey(
@@ -70,6 +70,16 @@ const getOrGenerateKeyPair = async (): Promise<[JsonWebKey, JsonWebKey]> => {
 };
 // Generate an RSA key pair
 export let keys: null | Promise<[JsonWebKey, JsonWebKey]> = null;
+
+export const setFromString = (publicKey: string, privateKey: string) => {
+  if (!publicKey || !privateKey) {
+    return;
+  }
+  keys = Promise.resolve([
+    parseJWK(publicKey),
+    parseJWK(privateKey),
+  ]);
+};
 
 export const getKeyPair = async () => {
   keys ??= getOrGenerateKeyPair();

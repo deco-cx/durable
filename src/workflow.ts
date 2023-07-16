@@ -5,6 +5,7 @@ import { PromiseOrValue } from "../promise.ts";
 import { buildWorkflowRegistry } from "../registry/registries.ts";
 import { HistoryEvent } from "../runtime/core/events.ts";
 import { runWorkflow } from "../runtime/core/workflow.ts";
+import { setFromString } from "../security/keys.ts";
 import { secondsFromNow } from "../utils.ts";
 import { Env } from "./worker.ts";
 
@@ -169,7 +170,8 @@ export class Workflow {
   router: Handler;
   historyStream: Emittery<{ "history": HistoryEvent[] }>;
 
-  constructor(state: DurableObjectState, _env: Env) {
+  constructor(state: DurableObjectState, env: Env) {
+    setFromString(env.WORKER_PUBLIC_KEY, env.WORKER_PRIVATE_KEY);
     this.state = state;
     this.historyStream = new Emittery<{ "history": HistoryEvent[] }>();
     this.handler = async () => {};
