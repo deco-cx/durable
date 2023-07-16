@@ -11,6 +11,7 @@ export interface PaginationParams {
  * Events is the operation that can be executed against the events.
  */
 export interface Events {
+  stream?: (args?: { signal?: AbortSignal }) => Promise<Response>;
   add(...events: [...HistoryEvent[]]): Promise<void>;
   del(...events: [...HistoryEvent[]]): Promise<void>;
   get(pagination?: PaginationParams): Promise<HistoryEvent[]>;

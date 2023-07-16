@@ -18,9 +18,3 @@ globs = ["**/*.ts"]
 [[migrations]]
 tag = "v1" # Should be unique for each entry
 new_classes = ["Workflow"]
-
-[triggers]
-crons = ["* * * * *"]
-
-[env.dev.triggers]
-crons = ["* * * * *"]

@@ -19,10 +19,19 @@ const parseOrThrow = <T>() => async (resp: Response) => {
   throw new Error(`http error ${resp.status} ${await resp.text()}`);
 };
 const eventsFor = (
+  { signal }: DBContext,
   route: "/history" | "/pending",
   durable: DurableObjectStub,
 ): Events => {
   return {
+    stream: () => {
+      return durable.fetch(
+        withOrigin(
+          `${route}?stream=true`,
+        ),
+        { signal },
+      );
+    },
     get: (pagination?: PaginationParams) => {
       return durable.fetch(
         withOrigin(
@@ -30,6 +39,7 @@ const eventsFor = (
             pagination?.pageSize ?? 10
           }`,
         ),
+        { signal },
       ).then(parseOrThrow<HistoryEvent[]>());
     },
     del: async () => {},
@@ -39,7 +49,7 @@ const eventsFor = (
           withOrigin(
             "/pending",
           ),
-          { body: JSON.stringify({ events }), method: "POST" },
+          { body: JSON.stringify({ events }), method: "POST", signal },
         ).then(parseOrThrow<HistoryEvent[]>());
       }
     },
@@ -47,34 +57,43 @@ const eventsFor = (
 };
 
 const executionFor = (
+  { signal, ...rest }: DBContext,
   durable: DurableObjectStub,
 ): Execution => {
   const useMethod = (method: string) => (workflow: WorkflowExecution) => {
     return durable.fetch(withOrigin("/"), {
+      signal,
       method,
       body: JSON.stringify(workflow),
     }).then(parseOrThrow<void>());
   };
   return {
     get: () => {
-      return durable.fetch(withOrigin("/"), { method: "GET" }).then(
+      return durable.fetch(withOrigin("/"), { method: "GET", signal }).then(
         parseOrThrow<WorkflowExecution>(),
       );
     },
-    pending: eventsFor("/pending", durable),
-    history: eventsFor("/history", durable),
+    pending: eventsFor({ signal, ...rest }, "/pending", durable),
+    history: eventsFor({ signal, ...rest }, "/history", durable),
     update: useMethod("PUT"),
     create: useMethod("POST"),
     withinTransaction: async <T>(f: (db: Execution) => PromiseOrValue<T>) => {
-      return await f(executionFor(durable));
+      return await f(executionFor({ signal, ...rest }, durable));
     },
   };
 };
-export const dbForEnv = (env: Env): DB => {
+
+export interface DBContext {
+  env: Env;
+  signal: AbortSignal;
+}
+export const dbForEnv = (ctx: DBContext): DB => {
   return {
     execution: (executionId: string) => {
-      const workflow = env.WORKFLOWS.get(env.WORKFLOWS.idFromName(executionId));
-      return executionFor(workflow);
+      const workflow = ctx.env.WORKFLOWS.get(
+        ctx.env.WORKFLOWS.idFromName(executionId),
+      );
+      return executionFor(ctx, workflow);
     },
     pendingExecutions: () => {
       return Promise.resolve([]);

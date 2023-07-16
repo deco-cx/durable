@@ -76,6 +76,9 @@ export const getRouter = async (
       return Response.json({}, { status: 403 }); // do not expose not found errors.
     }
     const url = new URL(req.url);
+    if (url.searchParams.has("stream")) {
+      return await service.executionHistoryStream(id, _req.signal);
+    }
     const page = url.searchParams.get("page");
     const pageSize = url.searchParams.get("pageSize");
     const history = await service.executionHistory(

@@ -41,6 +41,16 @@ export class WorkflowService {
     });
   }
 
+  /** */
+  public async executionHistoryStream(
+    executionId: string,
+    signal?: AbortSignal,
+  ): Promise<Response> {
+    return await this.backend.execution(executionId).history.stream!({
+      signal,
+    });
+  }
+
   /**
    * executionHistory execution gets the execution history
    * @param executionId the executionId.

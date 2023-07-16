@@ -1,3 +1,4 @@
+import Emittery from "emittery";
 import { PromiseOrValue } from "../../promise.ts";
 import { HistoryEvent } from "../../runtime/core/events.ts";
 import { secondsFromNow } from "../../utils.ts";
@@ -60,10 +61,6 @@ export const useCollection = <T extends readonly Identifiable[]>(
       }
 
       // TODO(mcandeia) add pagination
-      const page = pagination?.page ?? 0;
-      const pageSize = pagination?.pageSize ?? 10;
-      const start = page * pageSize;
-      const end = start + pageSize;
       return items;
     },
     del: async (...items: T): Promise<void> => {
@@ -84,6 +81,7 @@ const sortHistoryEventByDate = (
 
 export const durableExecution = (
   db: DurableObjectTransaction | DurableObjectStorage,
+  historyStream: Emittery<{ "history": HistoryEvent[] }>,
   allowUnconfirmed = false,
 ) => {
   const executions = useSingleton<WorkflowExecution>(
@@ -183,6 +181,12 @@ export const durableExecution = (
     },
     history: {
       ...history,
+      add: async (...events: HistoryEvent[]) => {
+        return history.add(...events).then((r) => {
+          historyStream.emit("history", events);
+          return r;
+        });
+      },
       get: async (pagination?: PaginationParams) => {
         const reverse =
           (pagination?.page ?? pagination?.pageSize) !== undefined;
@@ -208,7 +212,7 @@ export const durableExecution = (
       if (!isDurableObjStorage(db)) {
         throw new Error("cannot create inner transactions");
       }
-      return await f(durableExecution(db, allowUnconfirmed));
+      return await f(durableExecution(db, historyStream, allowUnconfirmed));
     },
   };
 };
@@ -224,7 +228,10 @@ export const dbFor = (
 ): DB => {
   return {
     execution: (_executionId: string) => {
-      return durableExecution(db);
+      return durableExecution(
+        db,
+        new Emittery<{ "history": HistoryEvent[] }>(),
+      );
     },
     pendingExecutions: () => {
       return Promise.resolve([]);

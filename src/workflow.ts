@@ -1,10 +1,11 @@
+import Emittery from "emittery";
 import { Execution, WorkflowExecution } from "../backends/backend.ts";
 import { durableExecution } from "../backends/durableObjects/db.ts";
 import { PromiseOrValue } from "../promise.ts";
 import { buildWorkflowRegistry } from "../registry/registries.ts";
 import { HistoryEvent } from "../runtime/core/events.ts";
+import { runWorkflow } from "../runtime/core/workflow.ts";
 import { secondsFromNow } from "../utils.ts";
-import { runWorkflow } from "../workers/run.ts";
 import { Env } from "./worker.ts";
 
 export type Handler = (request: Request) => PromiseOrValue<Response>;
@@ -59,6 +60,33 @@ export const buildRoutes = (wkflow: Workflow): Routes => {
     "/history": {
       "GET": async (_req: Request) => {
         const search = new URL(_req.url).searchParams;
+        if (search.has("stream")) {
+          const eventStream = wkflow.historyStream.anyEvent();
+
+          if (!eventStream) {
+            return new Response(null, { status: 204 });
+          }
+          _req.signal.onabort = () => {
+            eventStream.return?.();
+          };
+          const { readable, writable } = new TransformStream();
+          (async () => {
+            const encoder = new TextEncoder();
+            const writer = writable.getWriter();
+
+            for await (const events of eventStream) {
+              await writer.write(encoder.encode(JSON.stringify(events[1])));
+            }
+          })();
+          return new Response(readable, {
+            status: 200,
+            headers: {
+              "content-type": "text/event-stream",
+              "connection": "keep-alive",
+              "cache-control": "no-cache",
+            },
+          });
+        }
         let pagination = undefined;
         if (search.has("page")) {
           pagination = { page: +search.get("page")! };
@@ -105,11 +133,13 @@ export class Workflow {
   execution: Execution;
   handler: (allowUnconfirmed?: boolean) => Promise<void>;
   router: Handler;
+  historyStream: Emittery<{ "history": HistoryEvent[] }>;
 
   constructor(state: DurableObjectState, _env: Env) {
     this.state = state;
+    this.historyStream = new Emittery<{ "history": HistoryEvent[] }>();
     this.handler = async () => {};
-    this.execution = durableExecution(this.state.storage);
+    this.execution = durableExecution(this.state.storage, this.historyStream);
     this.router = router(buildRoutes(this));
     this.state.blockConcurrencyWhile(async () => {
       const [registry] = await Promise.all([
@@ -118,7 +148,11 @@ export class Workflow {
       // After initialization, future reads do not need to access storage.
       this.handler = (allowUnconfirmed = false) => {
         return runWorkflow(
-          durableExecution(this.state.storage, allowUnconfirmed),
+          durableExecution(
+            this.state.storage,
+            this.historyStream,
+            allowUnconfirmed,
+          ),
           registry,
         );
       };
