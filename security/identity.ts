@@ -1,8 +1,5 @@
-import {
-  decode,
-  encode,
-} from "https://deno.land/std@0.186.0/encoding/base64.ts";
 import { PromiseOrValue } from "../promise.ts";
+import { decode, encode } from "./base64.ts";
 import { ChannelEncryption } from "./channel.ts";
 import { alg, getKeyPair, hash, importJWK } from "./keys.ts";
 
@@ -73,10 +70,11 @@ export const fetchPublicKey = async (
 ): Promise<JsonWebKey> => {
   const response = await fetch(`${service}/.well_known/jwks.json`);
   if (response.ok) {
-    const { keys } = await response.json();
+    const { keys }: { keys: Array<JsonWebKey & { kid: string }> } =
+      await response.json();
     return (keys ?? []).find((key: { kid: string }) =>
       key?.kid === (kid ?? keyId)
-    );
+    )!;
   }
   throw new Error(
     `${response.status} when trying to retrieve public key from workers ${service}`,

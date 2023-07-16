@@ -28,5 +28,6 @@ export default function* createOrder(
   console.log("RUNNING 1");
   const orderCreated: Order = yield ctx.waitForSignal("order_created");
   console.log("RUNNING 2");
+	console.log({orderCreated})
   return { id: orderCreated.id };
 }

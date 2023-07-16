@@ -1,6 +1,5 @@
-import { Pool, PoolClient } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
+import { Pool, PoolClient } from "pg";
 import { PromiseOrValue } from "../../promise.ts";
-import { tryParseInt } from "../../utils.ts";
 
 class PoolInstance {
   private static instance: Pool;
@@ -10,9 +9,8 @@ class PoolInstance {
   public static get(): Pool {
     if (!PoolInstance.instance) {
       const DEFAULT_POOL_SIZE = 5;
-      const poolSize = tryParseInt(Deno.env.get("PGPOOLSIZE")) ??
-        DEFAULT_POOL_SIZE;
-      PoolInstance.instance = new Pool({}, poolSize, true);
+      const poolSize = DEFAULT_POOL_SIZE;
+      PoolInstance.instance = new Pool({ max: poolSize });
     }
     return PoolInstance.instance;
   }

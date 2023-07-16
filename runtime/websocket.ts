@@ -1,10 +1,10 @@
-import { WebSocketRunRequest } from "../handler.ts";
-import { Workflow, WorkflowContext } from "../mod.ts";
+import { WorkflowContext } from "../context.ts";
 import { WebSocketWorkflowRuntimeRef } from "../registry/registries.ts";
+import { WebSocketRunRequest } from "../sdk/deno/handler.ts";
 import { asEncryptedChannel } from "../security/channel.ts";
 import { Arg } from "../types.ts";
 import { Command } from "./core/commands.ts";
-import { WorkflowGen } from "./core/workflow.ts";
+import { Workflow, WorkflowGen } from "./core/workflow.ts";
 
 export const websocket = <
   TArgs extends Arg = Arg,
@@ -51,8 +51,7 @@ export const websocket = <
               );
             }
 
-            let cmd: Command | true | null = await firstCommand;
-
+            let cmd: Command | boolean = await firstCommand;
             for (; index < events.length && cmd !== true; index++) {
               const isClosed = await Promise.race([
                 channel.send(events[index]),
@@ -67,7 +66,7 @@ export const websocket = <
               cmd = await Promise.race([channel.recv(), channel.closed.wait()]);
             }
 
-            if (cmd === true) {
+            if (typeof cmd === "boolean") {
               throw new Error(
                 "channel was closed before message is transmitted",
               );

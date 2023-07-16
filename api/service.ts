@@ -1,4 +1,3 @@
-import { v4 } from "https://deno.land/std@0.72.0/uuid/mod.ts";
 import { DB, WorkflowExecution } from "../backends/backend.ts";
 import { Metadata } from "../context.ts";
 import { WorkflowRegistry } from "../registry/registries.ts";
@@ -42,6 +41,16 @@ export class WorkflowService {
     });
   }
 
+  /** */
+  public async executionHistoryStream(
+    executionId: string,
+    signal?: AbortSignal,
+  ): Promise<Response> {
+    return await this.backend.execution(executionId).history.stream!({
+      signal,
+    });
+  }
+
   /**
    * executionHistory execution gets the execution history
    * @param executionId the executionId.
@@ -75,6 +84,15 @@ export class WorkflowService {
   }
 
   /**
+   * Make the execution run.
+   */
+  public async touchExecution(
+    executionId: string,
+  ): Promise<void> {
+    await this.backend.execution(executionId).pending.add();
+  }
+
+  /**
    * Signal the workflow with the given signal and payload.
    */
   public async signalExecution(
@@ -95,27 +113,28 @@ export class WorkflowService {
    * @param options the workflow creation options
    * @param input the workflow input
    */
-  public async startExecution<TArgs extends Arg = Arg>(
+  public startExecution<TArgs extends Arg = Arg>(
     { alias, executionId, metadata }: WorkflowCreationOptions,
     input?: [...TArgs],
   ): Promise<WorkflowExecution> {
-    const wkflowInstanceId = executionId ?? v4.generate();
-    return await this.backend.withinTransaction(async (db) => {
-      const execution: WorkflowExecution = {
-        alias,
-        id: wkflowInstanceId,
-        status: "running",
-        metadata,
-        input,
-      };
-      const executionsDB = db.execution(wkflowInstanceId);
-      await executionsDB.create(execution); // cannot be parallelized
-      await executionsDB.pending.add({
-        ...newEvent(),
-        type: "workflow_started",
-        input,
-      });
-      return execution;
-    });
+    const wkflowInstanceId = executionId ?? crypto.randomUUID();
+    return this.backend.execution(wkflowInstanceId).withinTransaction(
+      async (executionsDB) => {
+        const execution: WorkflowExecution = {
+          alias,
+          id: wkflowInstanceId,
+          status: "running",
+          metadata,
+          input,
+        };
+        await executionsDB.create(execution); // cannot be parallelized
+        await executionsDB.pending.add({
+          ...newEvent(),
+          type: "workflow_started",
+          input,
+        });
+        return execution;
+      },
+    );
   }
 }

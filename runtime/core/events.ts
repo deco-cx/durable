@@ -1,4 +1,3 @@
-import { v4 } from "https://deno.land/std@0.72.0/uuid/mod.ts";
 import { Arg } from "../../types.ts";
 import { Command } from "./commands.ts";
 import { WorkflowState } from "./state.ts";
@@ -13,6 +12,11 @@ export interface Event {
   timestamp: Date;
   seq: number;
   visibleAt?: Date;
+}
+
+export interface NoOpEvent extends Event {
+  type: "no_op";
+  reason?: string;
 }
 
 /**
@@ -108,6 +112,7 @@ export interface LocalActivityCalledEvent<TResult = unknown> extends Event {
  * All possible types of events.
  */
 export type HistoryEvent =
+  | NoOpEvent
   | WorkflowStartedEvent
   | WorkflowFinishedEvent
   | WorkflowCanceledEvent
@@ -122,7 +127,7 @@ export type HistoryEvent =
 
 export const newEvent = (): Omit<Event, "type"> => {
   return {
-    id: v4.generate(),
+    id: crypto.randomUUID(),
     timestamp: new Date(),
     seq: 0,
   };
@@ -327,6 +332,7 @@ const handlers: Record<HistoryEvent["type"], EventHandler<any>> = {
   signal_received,
   local_activity_called,
   invoke_http_response,
+  no_op,
 };
 
 export function apply<TArgs extends Arg = Arg, TResult = unknown>(

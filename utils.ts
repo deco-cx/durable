@@ -1,4 +1,4 @@
-import { pLimit } from "https://deno.land/x/p_limit@v1.0.0/mod.ts";
+import pLimit from "p-limit";
 import { Arg } from "./types.ts";
 
 /**
@@ -57,10 +57,8 @@ export const singleFlight = <T>(): SingleFlight<T> => {
   };
 };
 
-export const setIntervalFlight = (
-  f: () => Promise<void>,
-  interval: number,
-): number => {
-  const sf = singleFlight();
-  return setInterval(() => sf.do("single", f), interval);
-};
+export function secondsFromNow(seconds: number) {
+  const date = new Date();
+  date.setSeconds(date.getSeconds() + seconds);
+  return date;
+}

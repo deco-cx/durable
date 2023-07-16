@@ -1,0 +1,20 @@
+name = "durable-workers"
+main = "src/worker.ts"
+compatibility_date = "2023-06-28"
+compatibility_flags = ["durable_object_alarms"]
+
+[dev]
+port = 8001
+local_protocol = "http"
+
+[durable_objects]
+bindings = [
+  { name = "WORKFLOWS", class_name = "Workflow" }
+]
+[[rules]]
+type = "ESModule"
+globs = ["**/*.ts"]
+# Indicate that you want the Workflow class to be callable as Durable Objects.
+[[migrations]]
+tag = "v1" # Should be unique for each entry
+new_classes = ["Workflow"]

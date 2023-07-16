@@ -1,8 +1,5 @@
-import {
-  makeSeededGenerators,
-  RandomGenerators,
-} from "https://raw.githubusercontent.com/alextes/vegas/main/mod.ts";
 import { PromiseOrValue } from "./promise.ts";
+import { makeRandomWithSeed } from "./randomSeed.ts";
 import {
   InvokeHttpEndpointCommand,
   LocalActivityCommand,
@@ -13,7 +10,6 @@ import {
 import { Arg } from "./types.ts";
 
 export type ActivityResult<T> = PromiseOrValue<T>;
-
 /**
  * Returns if the given activity result is a generator or not.
  * @param value the activity result
@@ -49,9 +45,9 @@ export interface Metadata {
  * WorkflowContext is used for providing api access to the workflow engine.
  */
 export class WorkflowContext<TMetadata extends Metadata = Metadata> {
-  private rand: RandomGenerators;
+  private rand: () => number;
   constructor(public executionId: string, public metadata?: TMetadata) {
-    this.rand = makeSeededGenerators(executionId);
+    this.rand = makeRandomWithSeed(executionId);
   }
 
   /**
@@ -130,6 +126,6 @@ export class WorkflowContext<TMetadata extends Metadata = Metadata> {
    * @returns a random float value.
    */
   public random(): number {
-    return this.rand.randomInt(0, Number.MAX_SAFE_INTEGER);
+    return this.rand();
   }
 }

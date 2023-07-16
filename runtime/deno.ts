@@ -1,7 +1,7 @@
 import { WorkflowContext } from "../context.ts";
-import { Workflow } from "../mod.ts";
 import { DenoWorkflowRuntimeRef } from "../registry/registries.ts";
 import { Arg } from "../types.ts";
+import { Workflow } from "./core/workflow.ts";
 
 export const deno = async <
   TArgs extends Arg = Arg,

@@ -111,17 +111,17 @@ const executionsFor = () => (executionId: string): Execution => {
         db.execute(updateExecution(executionId, execution)),
       );
     },
+    withinTransaction: async <TResult>(
+      exec: (db: Execution) => Promise<TResult>,
+    ): Promise<TResult> => {
+      return await exec(executionsFor()(executionId));
+    },
   };
 };
 
 function dbFor(): DB {
   return {
     execution: executionsFor(),
-    withinTransaction: async <TResult>(
-      exec: (db: DB) => Promise<TResult>,
-    ): Promise<TResult> => {
-      return await exec(dbFor());
-    },
     pendingExecutions: (
       lockTimeoutMS: number,
       limit: number,
