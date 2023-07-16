@@ -115,9 +115,9 @@ export const buildRoutes = (wkflow: Workflow): Routes => {
                 }
               }
             } finally {
-              if (!writer.closed) {
-                writer.close();
-              }
+              try {
+                await writer.close();
+              } catch {}
             }
           })();
           return new Response(readable, {
