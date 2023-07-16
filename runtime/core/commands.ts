@@ -27,6 +27,8 @@ export interface NoOpCommand extends CommandBase {
 export interface StoreLocalAcitivtyResult<TResult> extends CommandBase {
   name: "store_local_activity_result";
   result?: TResult;
+  activityName?: string;
+  activityParams?: unknown;
 }
 
 export interface DelegatedCommand extends CommandBase {
@@ -76,9 +78,13 @@ export interface FinishWorkflowCommand<TResult = unknown> extends CommandBase {
   result: TResult;
 }
 
-export interface LocalActivityCommand<TResult = unknown> extends CommandBase {
+export interface LocalActivityCommand<
+  TResult = unknown,
+  TArgs extends Arg = Arg,
+> extends CommandBase {
   name: "local_activity";
-  fn: () => PromiseOrValue<TResult>;
+  args?: [...TArgs];
+  fn: (...args: [...TArgs]) => PromiseOrValue<TResult>;
 }
 
 export interface CancelWorkflowCommand extends CommandBase {
@@ -95,25 +101,29 @@ export type Command =
   | WaitForSignalCommand
   | FinishWorkflowCommand<any>
   | DelegatedCommand
-  | LocalActivityCommand<any>
+  | LocalActivityCommand<any, any>
   | InvokeHttpEndpointCommand<any>;
 
 const no_op = () => [];
 
-const store_local_activity_result = async (
-  { result }: StoreLocalAcitivtyResult<any>,
-): Promise<HistoryEvent[]> => [{
+const store_local_activity_result = (
+  { result, activityName, activityParams }: StoreLocalAcitivtyResult<any>,
+): HistoryEvent[] => [{
   ...newEvent(),
   type: "local_activity_called",
+  activityName,
+  activityParams,
   result,
 }];
 
 const local_activity = async (
-  { fn }: LocalActivityCommand,
+  { fn, args }: LocalActivityCommand,
 ): Promise<HistoryEvent[]> => [{
   ...newEvent(),
   type: "local_activity_called",
-  result: await fn(),
+  activityName: fn.name,
+  activityParams: args,
+  result: await fn(args),
 }];
 
 const sleep = ({ isReplaying, until }: SleepCommand): HistoryEvent[] => {
@@ -285,7 +295,9 @@ export const runLocalActivity = async (cmd: Command): Promise<Command> => {
   if (cmd.name === "local_activity") {
     return {
       name: "store_local_activity_result",
-      result: await cmd.fn(),
+      activityName: cmd.fn.name,
+      activityParams: cmd.args,
+      result: await cmd.fn(...cmd?.args ?? []),
     };
   }
   return cmd;

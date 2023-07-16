@@ -41,12 +41,12 @@ export const getRouter = async (
   };
   app.get("/.well_known/jwks.json", wellKnownJWKSHandler);
   app.post("/executions", async ({ req: { raw: req } }) => {
-    const { alias, input, metadata, id } =
+    const { alias, input, metadata, id, runtimeParameters } =
       (await req.json()) as WorkflowExecution;
     await registry.verifySignature(alias, req);
     return Response.json(
       await service.startExecution(
-        { alias, executionId: id, metadata },
+        { alias, executionId: id, metadata, runtimeParameters },
         Array.isArray(input) ? input : [input],
       ),
     );

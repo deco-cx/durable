@@ -84,32 +84,39 @@ export const buildRoutes = (wkflow: Workflow): Routes => {
               wkflow.isCompleted(),
             ]);
             const writer = writable.getWriter();
-            await writer.write(encoder.encode(JSON.stringify(currentHistory)));
-            if (
-              isCompleted
-            ) {
-              return;
-            }
-            let sentEvents: Record<string, boolean> = {};
-
-            for (const event of currentHistory) {
-              sentEvents[event.id] = true;
-            }
-            const withoutSentEvents = (event: HistoryEvent): boolean => {
-              const sent = sentEvents[event.id];
-              sentEvents[event.id] = true;
-              return !sent;
-            };
-
-            for await (const events of eventStream) {
+            try {
               await writer.write(
-                encoder.encode(
-                  JSON.stringify(events[1].filter(withoutSentEvents)),
-                ),
+                encoder.encode(JSON.stringify(currentHistory)),
               );
-              if (await wkflow.isCompleted()) {
-                writer.close();
+              if (
+                isCompleted
+              ) {
                 return;
+              }
+              let sentEvents: Record<string, boolean> = {};
+
+              for (const event of currentHistory) {
+                sentEvents[event.id] = true;
+              }
+              const withoutSentEvents = (event: HistoryEvent): boolean => {
+                const sent = sentEvents[event.id];
+                sentEvents[event.id] = true;
+                return !sent;
+              };
+
+              for await (const events of eventStream) {
+                await writer.write(
+                  encoder.encode(
+                    JSON.stringify(events[1].filter(withoutSentEvents)),
+                  ),
+                );
+                if (await wkflow.isCompleted()) {
+                  return;
+                }
+              }
+            } finally {
+              if (!writer.closed) {
+                writer.close();
               }
             }
           })();

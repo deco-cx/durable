@@ -1,4 +1,8 @@
-import { DB, WorkflowExecution } from "../backends/backend.ts";
+import {
+  DB,
+  RuntimeParameters,
+  WorkflowExecution,
+} from "../backends/backend.ts";
 import { Metadata } from "../context.ts";
 import { WorkflowRegistry } from "../registry/registries.ts";
 import { HistoryEvent, newEvent } from "../runtime/core/events.ts";
@@ -13,6 +17,7 @@ export interface WorkflowCreationOptions<
   executionId?: string;
   alias: string;
   metadata?: TMetadata;
+  runtimeParameters?: RuntimeParameters;
 }
 export interface Pagination<T> {
   page: number;
@@ -114,7 +119,8 @@ export class WorkflowService {
    * @param input the workflow input
    */
   public startExecution<TArgs extends Arg = Arg>(
-    { alias, executionId, metadata }: WorkflowCreationOptions,
+    { alias, executionId, metadata, runtimeParameters }:
+      WorkflowCreationOptions,
     input?: [...TArgs],
   ): Promise<WorkflowExecution> {
     const wkflowInstanceId = executionId ?? crypto.randomUUID();
@@ -126,6 +132,7 @@ export class WorkflowService {
           status: "running",
           metadata,
           input,
+          runtimeParameters,
         };
         await executionsDB.create(execution); // cannot be parallelized
         await executionsDB.pending.add({

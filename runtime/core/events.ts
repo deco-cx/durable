@@ -106,6 +106,8 @@ export interface SignalReceivedEvent extends Event {
 export interface LocalActivityCalledEvent<TResult = unknown> extends Event {
   type: "local_activity_called";
   result: TResult;
+  activityName?: string;
+  activityParams?: unknown;
 }
 
 /**
