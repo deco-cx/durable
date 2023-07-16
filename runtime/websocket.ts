@@ -1,7 +1,7 @@
 import { WorkflowContext } from "../context.ts";
 import { WebSocketWorkflowRuntimeRef } from "../registry/registries.ts";
 import { WebSocketRunRequest } from "../sdk/deno/handler.ts";
-import { asEncryptedChannel } from "../security/channel.ts";
+import { asEncryptedChannel, Channel } from "../security/channel.ts";
 import { Arg } from "../types.ts";
 import { Command } from "./core/commands.ts";
 import { Workflow, WorkflowGen } from "./core/workflow.ts";
@@ -13,15 +13,32 @@ export const websocket = <
 >(
   { url }: Pick<WebSocketWorkflowRuntimeRef, "url">,
 ): Workflow<TArgs, TResult, TCtx> => {
-  const socket = new WebSocket(url);
-  const channelPromise = asEncryptedChannel<
-    WebSocketRunRequest | unknown,
-    Command
-  >(socket);
+  let socket: null | WebSocket = null;
+  let channelPromise:
+    | null
+    | Promise<
+      Channel<
+        WebSocketRunRequest | unknown,
+        Command
+      >
+    > = null;
   const workflowFunc: Workflow<TArgs, TResult, TCtx> = function* (
     ctx: TCtx,
     ...args: [...TArgs]
   ): WorkflowGen<TResult> {
+    const _url = new URL(url);
+    for (
+      const [key, value] of Object.entries(
+        ctx.runtimeParameters?.websocket?.defaultQueryParams ?? {},
+      )
+    ) {
+      _url.searchParams.set(key, value);
+    }
+    socket = new WebSocket(_url.toString());
+    channelPromise = asEncryptedChannel<
+      WebSocketRunRequest | unknown,
+      Command
+    >(socket);
     const initializedChannel = channelPromise.then((c) => {
       if (!c.closed.is_set()) {
         c.send({
@@ -78,10 +95,10 @@ export const websocket = <
     }
   };
   workflowFunc.dispose = () => {
-    channelPromise.then((c) => {
+    channelPromise?.then((c) => {
       c.closed.set();
     }).finally(() => {
-      socket.close();
+      socket?.close();
     });
   };
   return workflowFunc;

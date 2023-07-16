@@ -3,9 +3,10 @@ import type {
   ConnInfo,
   Handler,
 } from "https://deno.land/std@0.173.0/http/server.ts";
+import { RuntimeParameters } from "../../backends/backend.ts";
 import { Metadata } from "../../context.ts";
 import { PromiseOrValue } from "../../promise.ts";
-import { Command } from "../../runtime/core/commands.ts";
+import { Command, runLocalActivity } from "../../runtime/core/commands.ts";
 import { Workflow } from "../../runtime/core/workflow.ts";
 import { verifySignature } from "../../security/identity.ts";
 import { Arg } from "../../types.ts";
@@ -18,6 +19,7 @@ export interface WebSocketRunRequest<
   input: [...TArgs];
   executionId: string;
   metadata: TMetadata;
+  runtimeParameters?: RuntimeParameters;
 }
 
 export const isWebSocketRunReq = <
@@ -38,6 +40,7 @@ export interface HttpRunRequest<
   results: unknown[];
   executionId: string;
   metadata: TMetadata;
+  runtimeParameters?: RuntimeParameters;
 }
 
 export interface RunRequest<
@@ -48,6 +51,7 @@ export interface RunRequest<
   commands: CommandStream;
   executionId: string;
   metadata: TMetadata;
+  runtimeParameters?: RuntimeParameters;
 }
 
 export const arrToStream = (
@@ -79,15 +83,19 @@ export const workflowRemoteRunner = <
   TMetadata extends Metadata = Metadata,
 >(
   workflow: Workflow<TArgs, TResult, TCtx>,
-  Context: new (executionId: string, metadata?: TMetadata) => TCtx,
+  Context: (
+    executionId: string,
+    metadata?: TMetadata,
+    runtimeParameters?: RuntimeParameters,
+  ) => TCtx,
 ): (req: RunRequest<TArgs, TMetadata>) => Promise<void> => {
   return async function (
-    { commands, input, executionId, metadata }: RunRequest<
+    { commands, input, executionId, metadata, runtimeParameters }: RunRequest<
       TArgs,
       TMetadata
     >,
   ) {
-    const ctx = new Context(executionId, metadata);
+    const ctx = Context(executionId, metadata, runtimeParameters);
 
     const genFn = workflow(ctx, ...input);
     let cmd = genFn.next();
@@ -117,7 +125,11 @@ export const workflowHTTPHandler = <
   TMetadata extends Metadata = Metadata,
 >(
   workflow: Workflow<TArgs, TResult, TCtx>,
-  Context: new (executionId: string, metadata?: TMetadata) => TCtx,
+  Context: (
+    executionId: string,
+    metadata?: TMetadata,
+    runtimeParameters?: RuntimeParameters,
+  ) => TCtx,
   workerPublicKey?: JsonWebKey,
 ): Handler => {
   const runner = workflowRemoteRunner(workflow, Context);
@@ -162,7 +174,11 @@ export const useWorkflowRoutes = (
       ? wkflow
       : { alias: wkflow.name, func: wkflow };
     const route = `${baseRoute}${alias}`;
-    routes[route] = workflowHTTPHandler(func, WorkflowContext);
+    routes[route] = workflowHTTPHandler(
+      func,
+      (executionId, metadata, runtimeParameters) =>
+        new WorkflowContext(executionId, metadata, runtimeParameters),
+    );
   }
   return (req: Request, conn: ConnInfo) => {
     const url = new URL(req.url);
@@ -177,6 +193,7 @@ export const useWorkflowRoutes = (
 export interface CommandStream {
   issue: (cmd: Command) => Promise<unknown | { isClosed: true }>;
 }
+
 const useChannel =
   <TArgs extends Arg = Arg, TMetadata extends Metadata = Metadata>(
     runner: (req: RunRequest<TArgs, TMetadata>) => Promise<void>,
@@ -187,7 +204,8 @@ const useChannel =
       throw new Error(`received unexpected message ${JSON.stringify(runReq)}`);
     }
     const commands: CommandStream = {
-      issue: async (cmd: Command) => {
+      issue: async (_cmd: Command) => {
+        const cmd = await runLocalActivity(_cmd);
         const closed = await Promise.race([chan.closed.wait(), chan.send(cmd)]);
         if (closed === true) {
           return { isClosed: true };
@@ -213,7 +231,11 @@ export const workflowWebSocketHandler = <
   TMetadata extends Metadata = Metadata,
 >(
   workflow: Workflow<TArgs, TResult, TCtx>,
-  Context: new (executionId: string, metadata?: TMetadata) => TCtx,
+  Context: (
+    executionId: string,
+    metadata?: TMetadata,
+    runtimeParameters?: RuntimeParameters,
+  ) => TCtx,
   workerPublicKey: PromiseOrValue<JsonWebKey>,
 ): Handler => {
   const runner = workflowRemoteRunner<TArgs, TResult, TCtx, TMetadata>(

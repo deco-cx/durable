@@ -71,6 +71,15 @@ export const WORKFLOW_NOT_COMPLETED: WorkflowStatus[] = [
   "running",
   "sleeping",
 ];
+
+export interface RuntimeParameters {
+  http: {
+    defaultHeaders: Record<string, string>;
+  };
+  websocket: {
+    defaultQueryParams: Record<string, string>;
+  };
+}
 export interface WorkflowExecution<
   TArgs extends Arg = Arg,
   TResult = unknown,
@@ -81,6 +90,7 @@ export interface WorkflowExecution<
   completedAt?: Date;
   status: WorkflowStatus;
   metadata?: TMetadata;
+  runtimeParameters?: RuntimeParameters;
   input?: TArgs;
   output?: TResult;
 }

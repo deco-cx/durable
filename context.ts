@@ -1,3 +1,4 @@
+import { RuntimeParameters } from "./backends/backend.ts";
 import { PromiseOrValue } from "./promise.ts";
 import { makeRandomWithSeed } from "./randomSeed.ts";
 import {
@@ -46,7 +47,11 @@ export interface Metadata {
  */
 export class WorkflowContext<TMetadata extends Metadata = Metadata> {
   private rand: () => number;
-  constructor(public executionId: string, public metadata?: TMetadata) {
+  constructor(
+    public executionId: string,
+    public metadata?: TMetadata,
+    public runtimeParameters?: RuntimeParameters,
+  ) {
     this.rand = makeRandomWithSeed(executionId);
   }
 
@@ -75,9 +80,9 @@ export class WorkflowContext<TMetadata extends Metadata = Metadata> {
    * @param activity the activity that should be executed
    */
   public callLocalActivity<TResult = unknown>(
-    activity: () => TResult,
+    activity: () => PromiseOrValue<TResult>,
   ): LocalActivityCommand<TResult> {
-    return { name: "local_activity", result: activity() };
+    return { name: "local_activity", fn: activity };
   }
 
   /**

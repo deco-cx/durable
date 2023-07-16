@@ -7,11 +7,16 @@ import {
   workflowWebSocketHandler,
 } from "./handler.ts";
 export type { Pagination } from "../../api/service.ts";
-export type { WorkflowExecution } from "../../backends/backend.ts";
+export type {
+  RuntimeParameters,
+  WorkflowExecution,
+} from "../../backends/backend.ts";
 export type { Metadata } from "../../context.ts";
 export type {
   Command,
   InvokeHttpEndpointCommand,
+  LocalActivityCommand,
+  StoreLocalAcitivtyResult,
 } from "../../runtime/core/commands.ts";
 export type {
   ActivityCompletedEvent,

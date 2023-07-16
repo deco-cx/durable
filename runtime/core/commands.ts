@@ -24,6 +24,11 @@ export interface NoOpCommand extends CommandBase {
   name: "no_op";
 }
 
+export interface StoreLocalAcitivtyResult<TResult> extends CommandBase {
+  name: "store_local_activity_result";
+  result?: TResult;
+}
+
 export interface DelegatedCommand extends CommandBase {
   name: "delegated";
   getCmd: () => Promise<Command>;
@@ -73,7 +78,7 @@ export interface FinishWorkflowCommand<TResult = unknown> extends CommandBase {
 
 export interface LocalActivityCommand<TResult = unknown> extends CommandBase {
   name: "local_activity";
-  result: TResult;
+  fn: () => PromiseOrValue<TResult>;
 }
 
 export interface CancelWorkflowCommand extends CommandBase {
@@ -82,6 +87,7 @@ export interface CancelWorkflowCommand extends CommandBase {
 }
 
 export type Command =
+  | StoreLocalAcitivtyResult<any>
   | CancelWorkflowCommand
   | NoOpCommand
   | SleepCommand
@@ -93,9 +99,22 @@ export type Command =
   | InvokeHttpEndpointCommand<any>;
 
 const no_op = () => [];
-const local_activity = (
-  { result }: LocalActivityCommand,
-): HistoryEvent[] => [{ ...newEvent(), type: "local_activity_called", result }];
+
+const store_local_activity_result = async (
+  { result }: StoreLocalAcitivtyResult<any>,
+): Promise<HistoryEvent[]> => [{
+  ...newEvent(),
+  type: "local_activity_called",
+  result,
+}];
+
+const local_activity = async (
+  { fn }: LocalActivityCommand,
+): Promise<HistoryEvent[]> => [{
+  ...newEvent(),
+  type: "local_activity_called",
+  result: await fn(),
+}];
 
 const sleep = ({ isReplaying, until }: SleepCommand): HistoryEvent[] => {
   if (isReplaying) {
@@ -251,6 +270,7 @@ const handleByCommand: Record<
   local_activity,
   cancel_workflow,
   invoke_http_endpoint,
+  store_local_activity_result,
 };
 
 export const handleCommand = async <TArgs extends Arg = Arg, TResult = unknown>(
@@ -259,4 +279,14 @@ export const handleCommand = async <TArgs extends Arg = Arg, TResult = unknown>(
 ): Promise<HistoryEvent[]> => {
   const promiseOrValue = handleByCommand[c.name](c, state);
   return isAwaitable(promiseOrValue) ? await promiseOrValue : promiseOrValue;
+};
+
+export const runLocalActivity = async (cmd: Command): Promise<Command> => {
+  if (cmd.name === "local_activity") {
+    return {
+      name: "store_local_activity_result",
+      result: await cmd.fn(),
+    };
+  }
+  return cmd;
 };

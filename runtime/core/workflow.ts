@@ -67,7 +67,11 @@ async (
       execution.pending.get(),
     ]);
 
-    const ctx = new WorkflowContext(executionId, workflowExecution.metadata);
+    const ctx = new WorkflowContext(
+      executionId,
+      workflowExecution.metadata,
+      workflowExecution.runtimeParameters,
+    );
     const workflowFn: WorkflowGenFn<TArgs, TResult> = (
       ...args: [...TArgs]
     ): WorkflowGen<TResult> => {
