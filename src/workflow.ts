@@ -1,5 +1,9 @@
 import Emittery from "emittery";
-import { Execution, WorkflowExecution } from "../backends/backend.ts";
+import {
+  Execution,
+  PaginationParams,
+  WorkflowExecution,
+} from "../backends/backend.ts";
 import { durableExecution } from "../backends/durableObjects/db.ts";
 import { PromiseOrValue } from "../promise.ts";
 import { buildWorkflowRegistry } from "../registry/registries.ts";
@@ -127,7 +131,7 @@ export const buildRoutes = (wkflow: Workflow): Routes => {
         }
         return new Response(
           JSON.stringify(
-            await dbWithConcurrencyAllowed.history.get(
+            await wkflow.history(
               pagination ?? { page: 0, pageSize: 10 },
             ),
           ),
@@ -195,9 +199,9 @@ export class Workflow {
       execution?.status === "canceled";
   }
 
-  async history() {
+  async history(pagination?: PaginationParams) {
     return await this.execution.withGateOpts({ allowConcurrency: true }).history
-      .get();
+      .get(pagination);
   }
 
   async alarm() {
