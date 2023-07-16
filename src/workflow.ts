@@ -233,6 +233,9 @@ export class Workflow {
   }
 
   async alarm() {
+    console.log(
+      `alarm for ${(await this.execution.get())?.id}`,
+    );
     await this.handler().then(this.onAlarmSuccess.bind(this)).catch(
       this.onAlarmError.bind(this),
     );
