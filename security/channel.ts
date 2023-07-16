@@ -85,7 +85,9 @@ export const asChannel = async <Send, Recv>(
       const received = await recv.pop();
       const { isValid, data } = await verify(received.toString());
       if (!isValid) {
-        throw new Error("channel encryption does not match");
+        throw new Error(
+          `channel encryption does not match.\n Data: ${data}\n Received: ${received.toString()}`,
+        );
       }
       return data ? JSON.parse(data) : {};
     },

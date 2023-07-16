@@ -8,7 +8,8 @@ import { runWorkflow } from "../runtime/core/workflow.ts";
 import { secondsFromNow } from "../utils.ts";
 import { Env } from "./worker.ts";
 
-const MAX_RETRY_COUNT = 10;
+const MAX_RETRY_COUNT = 20;
+const MAXIMUM_BACKOFF_SECONDS = 64;
 
 export type Handler = (request: Request) => PromiseOrValue<Response>;
 export type HTTPMethod = "GET" | "POST" | "PUT" | "HEAD" | "DELETE";
@@ -214,12 +215,6 @@ export class Workflow {
   onHandleError(allowUnconfirmed = false) {
     return async (err: any) => {
       const retryCount = await this.addRetries(allowUnconfirmed);
-      try {
-        console.error(
-          `handle error retry count ${retryCount}`,
-          JSON.stringify(err),
-        );
-      } catch {}
       if (retryCount >= MAX_RETRY_COUNT) {
         console.log(
           `workflow ${(await this.execution.withGateOpts({ allowUnconfirmed })
@@ -229,7 +224,18 @@ export class Workflow {
         await this.zeroRetries(allowUnconfirmed);
         return; // returning OK so the alarm will not be retried
       }
-      await this.state.storage.setAlarm(secondsFromNow(15), {
+      const jitter = (Math.floor(Math.random() * 2)) + 1; // from 1 to 3s of jitter
+      const inSeconds = Math.min(
+        (2 ^ retryCount) + jitter,
+        MAXIMUM_BACKOFF_SECONDS,
+      );
+      try {
+        console.error(
+          `handle error retry count ${retryCount}, trying in ${inSeconds} seconds`,
+          JSON.stringify(err),
+        );
+      } catch {}
+      await this.state.storage.setAlarm(secondsFromNow(inSeconds), {
         allowUnconfirmed,
       });
     };
