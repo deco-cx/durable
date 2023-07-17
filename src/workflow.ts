@@ -1,5 +1,8 @@
 import { PaginationParams, WorkflowExecution } from "../backends/backend.ts";
-import { durableExecution } from "../backends/durableObjects/db.ts";
+import {
+  durableExecution,
+  sortHistoryEventByDate,
+} from "../backends/durableObjects/db.ts";
 import { PromiseOrValue } from "../promise.ts";
 import { buildWorkflowRegistry } from "../registry/registries.ts";
 import { HistoryEvent } from "../runtime/core/events.ts";
@@ -35,7 +38,7 @@ export const buildRoutes = (wkflow: Workflow): Routes => {
         const body: { events: HistoryEvent[] } = await req.json();
         await Promise.all([
           wkflow.execution.pending.add(...body.events),
-          wkflow.state.storage.setAlarm(secondsFromNow(15)), // we set as a safety guard to make sure that the workflow will execute in a at-least-once fashion
+          wkflow.scheduleRetry(), // we set as a safety guard to make sure that the workflow will execute in a at-least-once fashion
         ]);
         wkflow.state.waitUntil(wkflow.handler(true));
         return new Response(JSON.stringify({}), { status: 200 });
@@ -235,9 +238,34 @@ export class Workflow {
       });
     };
   }
+
+  async scheduleRetry(allowUnconfirmed = false) {
+    await this.state.storage.setAlarm(secondsFromNow(15), {
+      allowUnconfirmed,
+    });
+  }
   onHandleSuccess(allowUnconfirmed = false) {
     return async () => {
-      await this.zeroRetries(allowUnconfirmed);
+      const [pending, isCompleted, _] = await Promise.all([
+        this.execution.withGateOpts({ allowUnconfirmed })
+          .pending
+          .get(),
+        this.isCompleted(),
+        this.zeroRetries(allowUnconfirmed),
+      ]);
+      const next = pending.sort(sortHistoryEventByDate)[0];
+      if (next === undefined) {
+        if (!isCompleted) {
+          await this.scheduleRetry(allowUnconfirmed);
+        } else {
+          await this.state.storage.deleteAlarm({ allowUnconfirmed });
+        }
+        return;
+      } else if (next.visibleAt) {
+        await this.state.storage.setAlarm(new Date(next.visibleAt).getTime());
+      } else {
+        await this.scheduleRetry(allowUnconfirmed);
+      }
     };
   }
 

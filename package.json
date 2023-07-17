@@ -14,7 +14,6 @@
 		"wrangler": "^3.0.0"
 	},
 	"dependencies": {
-		"emittery": "^1.0.1",
 		"hono": "^3.3.0",
 		"p-limit": "^4.0.0",
 		"pg": "^8.11.1"

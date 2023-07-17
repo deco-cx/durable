@@ -1,7 +1,7 @@
 // deno-lint-ignore-file no-explicit-any
 import type {
-  ConnInfo,
-  Handler,
+	ConnInfo,
+	Handler,
 } from "https://deno.land/std@0.173.0/http/server.ts";
 import { RuntimeParameters } from "../../backends/backend.ts";
 import { Metadata } from "../../context.ts";
@@ -10,7 +10,12 @@ import { Command, runLocalActivity } from "../../runtime/core/commands.ts";
 import { Workflow } from "../../runtime/core/workflow.ts";
 import { verifySignature } from "../../security/identity.ts";
 import { Arg } from "../../types.ts";
-import { asVerifiedChannel, Channel, WorkflowContext } from "./mod.ts";
+import {
+	Channel,
+	LocalActivityCommand,
+	WorkflowContext,
+	asVerifiedChannel,
+} from "./mod.ts";
 
 export interface WebSocketRunRequest<
   TArgs extends Arg = Arg,
@@ -203,16 +208,22 @@ const useChannel =
     if (!isWebSocketRunReq<TArgs, TMetadata>(runReq)) {
       throw new Error(`received unexpected message ${JSON.stringify(runReq)}`);
     }
+    const recvEvent = async (cmd: Command) => {
+      const closed = await Promise.race([chan.closed.wait(), chan.send(cmd)]);
+      if (closed === true) {
+        return { isClosed: true };
+      }
+      const event = await Promise.race([chan.recv(), chan.closed.wait()]);
+      if (event === true) {
+        return { isClosed: true };
+      }
+      return event;
+    };
     const commands: CommandStream = {
-      issue: async (_cmd: Command) => {
-        const cmd = await runLocalActivity(_cmd);
-        const closed = await Promise.race([chan.closed.wait(), chan.send(cmd)]);
-        if (closed === true) {
-          return { isClosed: true };
-        }
-        const event = await Promise.race([chan.recv(), chan.closed.wait()]);
-        if (event === true) {
-          return { isClosed: true };
+      issue: async (cmd: Command) => {
+        const event = await recvEvent(cmd);
+        if ((event as LocalActivityCommand)?.name === "local_activity") { // the server should send the command back to allow it to run.
+          return recvEvent(await runLocalActivity(cmd));
         }
         return event;
       },

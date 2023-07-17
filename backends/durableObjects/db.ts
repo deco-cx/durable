@@ -1,6 +1,5 @@
 import { PromiseOrValue } from "../../promise.ts";
 import { HistoryEvent } from "../../runtime/core/events.ts";
-import { secondsFromNow } from "../../utils.ts";
 import {
   DB,
   Execution,
@@ -77,10 +76,22 @@ const Keys = {
   history: "history",
   pending: "pending",
 };
-const sortHistoryEventByDate = (
-  a: HistoryEvent,
-  b: HistoryEvent,
-) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+export const sortHistoryEventByDate = (
+  fst: HistoryEvent,
+  snd: HistoryEvent,
+) => {
+  if (fst.visibleAt === undefined && snd.visibleAt === undefined) {
+    return new Date(fst.timestamp).getTime() -
+      new Date(snd.timestamp).getTime();
+  }
+  if (fst.visibleAt === undefined) {
+    return -1;
+  }
+  if (snd.visibleAt === undefined) {
+    return 1;
+  }
+  return new Date(fst.timestamp).getTime() - new Date(snd.timestamp).getTime();
+};
 
 export const durableExecution = (
   db: DurableObjectTransaction | DurableObjectStorage,
@@ -107,86 +118,10 @@ export const durableExecution = (
     create: executions.put.bind(executions),
     update: executions.put.bind(executions),
     pending: {
-      get: async (paginationParams?: PaginationParams) => {
-        const evts = await pending.get(paginationParams);
-        return [...evts.values()].sort(
-          sortHistoryEventByDate,
-        );
-      },
-      add: async (...events: HistoryEvent[]) => {
-        let lessyVisibleAt: number | null = null;
-        for (const event of events) {
-          event.visibleAt = event.visibleAt
-            ? new Date(event.visibleAt)
-            : event.visibleAt;
-
-          if (
-            event.visibleAt &&
-            (lessyVisibleAt === null ||
-              event.visibleAt.getTime() < lessyVisibleAt)
-          ) {
-            lessyVisibleAt = event.visibleAt.getTime();
-          }
-        }
-        const promises: Promise<void>[] = [pending.add(...events)];
-        const currentAlarm: number | null = await db.getAlarm();
-        if (
-          lessyVisibleAt &&
-          (currentAlarm === null || currentAlarm < lessyVisibleAt)
-        ) {
-          promises.push(
-            db.setAlarm(lessyVisibleAt, {
-              allowUnconfirmed: gateOpts.allowUnconfirmed,
-            }),
-          );
-        }
-        await Promise.all(promises);
-      },
-      del: async (...events: HistoryEvent[]) => {
-        await pending.del(...events);
-        const initialCurrentAlarmPromise = db.getAlarm();
-
-        const current = await pending.get();
-
-        if (current.size === 0) { // no pending events
-          await db.deleteAlarm({ allowUnconfirmed: gateOpts.allowUnconfirmed });
-          return;
-        }
-
-        const initialCurrentAlarm = await initialCurrentAlarmPromise;
-        let currentAlarm = initialCurrentAlarm;
-        let atLeastOneShouldBeExecutedNow = false;
-
-        for (const event of current.values()) {
-          event.visibleAt = event.visibleAt
-            ? new Date(event.visibleAt)
-            : event.visibleAt;
-
-          atLeastOneShouldBeExecutedNow ||= !event.visibleAt;
-          if (
-            event.visibleAt &&
-            (
-              currentAlarm === null ||
-              event.visibleAt.getTime() < currentAlarm
-            )
-          ) {
-            currentAlarm = event.visibleAt.getTime();
-          }
-        }
-        if (atLeastOneShouldBeExecutedNow) {
-          await db.setAlarm(secondsFromNow(15), {
-            allowUnconfirmed: gateOpts.allowUnconfirmed,
-          });
-          return;
-        }
-        if (
-          initialCurrentAlarm !== currentAlarm && currentAlarm &&
-          (!initialCurrentAlarm || currentAlarm < initialCurrentAlarm)
-        ) {
-          await db.setAlarm(currentAlarm, {
-            allowUnconfirmed: gateOpts.allowUnconfirmed,
-          });
-        }
+      ...pending,
+      get: async (pagination?: PaginationParams) => {
+        const items = await pending.get(pagination);
+        return Array.from(items.values());
       },
     },
     history: {
@@ -195,7 +130,7 @@ export const durableExecution = (
         const reverse =
           (pagination?.page ?? pagination?.pageSize) !== undefined;
         const hist = await history.get({ ...(pagination ?? {}), reverse });
-        const values = [...hist.values()].sort((histA, histB) => {
+        const values = Array.from(hist.values()).sort((histA, histB) => {
           const diff = histA.seq - histB.seq;
           return reverse ? -diff : diff;
         });

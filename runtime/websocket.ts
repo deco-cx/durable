@@ -88,6 +88,24 @@ export const websocket = <
                 "channel was closed before message is transmitted",
               );
             }
+            if (cmd.name === "local_activity") { // send it back to allow to run.
+              const isClosed = await Promise.race([
+                channel.send(cmd),
+                channel.closed.wait(),
+              ]);
+              if (typeof isClosed === "boolean") {
+                throw new Error(
+                  "channel was closed before message is transmitted",
+                );
+              }
+              cmd = await Promise.race([channel.recv(), channel.closed.wait()]);
+            }
+            if (typeof cmd === "boolean") {
+              throw new Error(
+                "channel was closed before message is transmitted",
+              );
+            }
+
             return cmd;
           },
         },
