@@ -1,4 +1,3 @@
-import Emittery from "emittery";
 import { PaginationParams, WorkflowExecution } from "../backends/backend.ts";
 import { durableExecution } from "../backends/durableObjects/db.ts";
 import { PromiseOrValue } from "../promise.ts";
@@ -68,53 +67,41 @@ export const buildRoutes = (wkflow: Workflow): Routes => {
       "GET": async (_req: Request) => {
         const search = new URL(_req.url).searchParams;
         if (search.has("stream")) {
-          const eventStream = wkflow.historyStream.anyEvent();
+          const sentEvents: Record<string, boolean> = {};
+          const eventStream = (async function* () {
+            while (true) {
+              if (_req.signal.aborted) {
+                break;
+              }
+              const [currentHistory, isCompleted] = await Promise.all([
+                wkflow.history(),
+                wkflow.isCompleted(),
+              ]);
+              for (const event of currentHistory) {
+                const sent = sentEvents[event.id];
+                sentEvents[event.id] = true;
+                if (!sent) {
+                  yield event;
+                }
+              }
+              if (isCompleted) {
+                break;
+              }
+              await new Promise((resolve) => setTimeout(resolve, 2000));
+            }
+          })();
 
-          if (!eventStream) {
-            return new Response(null, { status: 204 });
-          }
-          _req.signal.onabort = () => {
-            eventStream.return?.();
-          };
           const { readable, writable } = new TransformStream();
           (async () => {
             const encoder = new TextEncoder();
-            const [currentHistory, isCompleted] = await Promise.all([
-              wkflow.history(),
-              wkflow.isCompleted(),
-            ]);
             const writer = writable.getWriter();
             try {
-              if (currentHistory && currentHistory.length > 0) {
-                await writer.write(
-                  encoder.encode(JSON.stringify(currentHistory)),
-                );
-              }
-              if (
-                isCompleted
-              ) {
-                return;
-              }
-              let sentEvents: Record<string, boolean> = {};
-
-              for (const event of currentHistory) {
-                sentEvents[event.id] = true;
-              }
-              const withoutSentEvents = (event: HistoryEvent): boolean => {
-                const sent = sentEvents[event.id];
-                sentEvents[event.id] = true;
-                return !sent;
-              };
-
-              for await (const events of eventStream) {
+              for await (const event of eventStream) {
                 await writer.write(
                   encoder.encode(
-                    JSON.stringify(events[1].filter(withoutSentEvents)),
+                    JSON.stringify(event),
                   ),
                 );
-                if (await wkflow.isCompleted()) {
-                  return;
-                }
               }
             } finally {
               try {
@@ -177,14 +164,12 @@ export class Workflow {
   execution: ReturnType<typeof durableExecution>;
   handler: (allowUnconfirmed?: boolean) => Promise<void>;
   router: Handler;
-  historyStream: Emittery<{ "history": HistoryEvent[] }>;
 
   constructor(state: DurableObjectState, env: Env) {
     setFromString(env.WORKER_PUBLIC_KEY, env.WORKER_PRIVATE_KEY);
     this.state = state;
-    this.historyStream = new Emittery<{ "history": HistoryEvent[] }>();
     this.handler = async () => {};
-    this.execution = durableExecution(this.state.storage, this.historyStream);
+    this.execution = durableExecution(this.state.storage);
     this.router = router(buildRoutes(this));
     this.state.blockConcurrencyWhile(async () => {
       const [registry] = await Promise.all([
@@ -195,7 +180,6 @@ export class Workflow {
         return runWorkflow(
           durableExecution(
             this.state.storage,
-            this.historyStream,
             { allowUnconfirmed },
           ),
           registry,

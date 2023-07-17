@@ -1,13 +1,12 @@
-import Emittery from "emittery";
 import { PromiseOrValue } from "../../promise.ts";
 import { HistoryEvent } from "../../runtime/core/events.ts";
+import { secondsFromNow } from "../../utils.ts";
 import {
   DB,
   Execution,
   PaginationParams,
   WorkflowExecution,
 } from "../backend.ts";
-import { secondsFromNow } from "../../utils.ts";
 
 export interface GateOptions {
   allowUnconfirmed?: boolean;
@@ -85,7 +84,6 @@ const sortHistoryEventByDate = (
 
 export const durableExecution = (
   db: DurableObjectTransaction | DurableObjectStorage,
-  historyStream: Emittery<{ "history": HistoryEvent[] }>,
   gateOpts: GateOptions = { allowUnconfirmed: false },
 ) => {
   const executions = useSingleton<WorkflowExecution>(
@@ -104,8 +102,7 @@ export const durableExecution = (
     gateOpts,
   );
   return {
-    withGateOpts: (gateOpts: GateOptions) =>
-      durableExecution(db, historyStream, gateOpts),
+    withGateOpts: (gateOpts: GateOptions) => durableExecution(db, gateOpts),
     get: executions.get.bind(executions),
     create: executions.put.bind(executions),
     update: executions.put.bind(executions),
@@ -194,12 +191,6 @@ export const durableExecution = (
     },
     history: {
       ...history,
-      add: async (...events: HistoryEvent[]) => {
-        return history.add(...events).then((r) => {
-          historyStream.emit("history", events);
-          return r;
-        });
-      },
       get: async (pagination?: PaginationParams) => {
         const reverse =
           (pagination?.page ?? pagination?.pageSize) !== undefined;
@@ -225,7 +216,7 @@ export const durableExecution = (
       if (!isDurableObjStorage(db)) {
         throw new Error("cannot create inner transactions");
       }
-      return await f(durableExecution(db, historyStream, gateOpts));
+      return await f(durableExecution(db, gateOpts));
     },
   };
 };
@@ -243,7 +234,6 @@ export const dbFor = (
     execution: (_executionId: string) => {
       return durableExecution(
         db,
-        new Emittery<{ "history": HistoryEvent[] }>(),
       );
     },
     pendingExecutions: () => {
