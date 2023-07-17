@@ -85,9 +85,11 @@ export const buildRoutes = (wkflow: Workflow): Routes => {
             ]);
             const writer = writable.getWriter();
             try {
-              await writer.write(
-                encoder.encode(JSON.stringify(currentHistory)),
-              );
+              if (currentHistory && currentHistory.length > 0) {
+                await writer.write(
+                  encoder.encode(JSON.stringify(currentHistory)),
+                );
+              }
               if (
                 isCompleted
               ) {
