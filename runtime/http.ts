@@ -2,7 +2,7 @@ import { WorkflowContext } from "../context.ts";
 import { HttpWorkflowRuntimeRef } from "../registry/registries.ts";
 import { signedFetch } from "../security/fetch.ts";
 import { Arg } from "../types.ts";
-import { Command, runLocalActivity } from "./core/commands.ts";
+import { Command } from "./core/commands.ts";
 import { Workflow, WorkflowGen } from "./core/workflow.ts";
 
 export const http = <
@@ -43,7 +43,7 @@ export const http = <
                   }`,
                 );
               }
-              return runLocalActivity(msg);
+              return msg;
             }).catch((err) => {
               console.log("err", err);
               throw err;

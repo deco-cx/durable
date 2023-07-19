@@ -2,10 +2,12 @@ import { RuntimeParameters } from "./backends/backend.ts";
 import { PromiseOrValue } from "./promise.ts";
 import { makeRandomWithSeed } from "./randomSeed.ts";
 import {
+  Command,
   InvokeHttpEndpointCommand,
   LocalActivityCommand,
   ScheduleActivityCommand,
   SleepCommand,
+  WaitAllCommand,
   WaitForSignalCommand,
 } from "./runtime/core/commands.ts";
 import { Arg } from "./types.ts";
@@ -89,15 +91,15 @@ export class WorkflowContext<TMetadata extends Metadata = Metadata> {
    * Executes the http request for the given context and args.
    * @param url the fetch url
    */
-  public fetch<TBody = unknown>(
+  public fetch(
     url: string,
     options?: {
-      body?: TBody;
+      body?: string;
       headers?: Record<string, string>;
       method?: string;
     },
     format?: InvokeHttpEndpointCommand["responseFormat"],
-  ): InvokeHttpEndpointCommand<TBody> {
+  ): InvokeHttpEndpointCommand {
     return {
       name: "invoke_http_endpoint",
       url,
@@ -119,6 +121,16 @@ export class WorkflowContext<TMetadata extends Metadata = Metadata> {
   }
 
   /**
+   * Wait until all commands has completed and return an array of results.
+   */
+  public waitAll(commands: Command[]): WaitAllCommand {
+    return {
+      name: "wait_all",
+      commands,
+    };
+  }
+
+  /**
    * stops the current workflow execution and sleep until the given date.
    * @param until the date that should sleep.
    */
@@ -132,5 +144,17 @@ export class WorkflowContext<TMetadata extends Metadata = Metadata> {
    */
   public random(): number {
     return this.rand();
+  }
+
+  /**
+   * Logs at least once with additional workflow information
+   */
+  public log(message: any, ...optionalParams: any[]): LocalActivityCommand {
+    return this.callLocalActivity(() => {
+      console.log(
+        `[${new Date().toISOString()}][${this.executionId}]: ${message}`,
+        ...optionalParams,
+      );
+    });
   }
 }

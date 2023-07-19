@@ -19,6 +19,7 @@ export interface WorkflowState<TArgs extends Arg = Arg, TResult = unknown> {
   canceledAt?: Date;
   generatorFn?: WorkflowGen<TResult>;
   signals: Record<string, WorkflowGen<TResult> | undefined>;
+  timers: Record<string, WorkflowGen<TResult> | undefined>;
 }
 
 /**
@@ -35,6 +36,7 @@ export function zeroState<TArgs extends Arg = Arg, TResult = unknown>(
       name: "no_op",
     },
     signals: {},
+    timers: {},
     workflowFn,
   };
 }

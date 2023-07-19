@@ -1,7 +1,7 @@
 import { Arg } from "../../types.ts";
 import { Command } from "./commands.ts";
 import { WorkflowState } from "./state.ts";
-import { isNoArgFn } from "./workflow.ts";
+import { isNoArgFn, WorkflowGen } from "./workflow.ts";
 
 /**
  * Event is the base event
@@ -19,6 +19,16 @@ export interface NoOpEvent extends Event {
   reason?: string;
 }
 
+export type CommandResults = Partial<Record<Command["name"], HistoryEvent[]>>;
+export interface WaitingAnyEvent extends Event {
+  type: "waiting_any";
+  commands: string[];
+}
+
+export interface WaitingAllEvent extends Event {
+  type: "waiting_all";
+  commands: string[];
+}
 /**
  * WorkflowStartedEvent is the event that should start the workflow
  */
@@ -70,6 +80,7 @@ export interface ActivityStartedEvent<TArgs extends Arg = Arg> extends Event {
 export interface TimerScheduledEvent extends Event {
   type: "timer_scheduled";
   until: Date;
+  timerId: string;
 }
 
 /**
@@ -77,6 +88,7 @@ export interface TimerScheduledEvent extends Event {
  */
 export interface TimerFiredEvent extends Event {
   type: "timer_fired";
+  timerId: string;
 }
 
 /**
@@ -125,7 +137,9 @@ export type HistoryEvent =
   | WaitingSignalEvent
   | SignalReceivedEvent
   | LocalActivityCalledEvent
-  | InvokeHttpResponseEvent;
+  | InvokeHttpResponseEvent
+  | WaitingAllEvent
+  | WaitingAnyEvent;
 
 export const newEvent = (): Omit<Event, "type"> => {
   return {
@@ -152,6 +166,31 @@ export const no_op = function <TArgs extends Arg = Arg, TResult = unknown>(
   _: HistoryEvent,
 ): WorkflowState<TArgs, TResult> {
   return state;
+};
+
+export const waiting_any = function <
+  TArgs extends Arg = Arg,
+  TResult = unknown,
+>(
+  state: WorkflowState<TArgs, TResult>,
+  _: HistoryEvent,
+): WorkflowState<TArgs, TResult> {
+  return state;
+};
+
+export const waiting_all = function <
+  TArgs extends Arg = Arg,
+  TResult = unknown,
+>(
+  state: WorkflowState<TArgs, TResult>,
+  { commands }: WaitingAllEvent,
+): WorkflowState<TArgs, TResult> {
+  return {
+    ...state,
+    status: "sleeping",
+    current: { ...state.current, isReplaying: true },
+    generatorFn: withBarrierOf(commands.length, state.generatorFn!),
+  };
 };
 
 export const waiting_signal = function <
@@ -190,23 +229,29 @@ export const signal_received = function <
 
 const timer_scheduled = function <TArgs extends Arg = Arg, TResult = unknown>(
   state: WorkflowState<TArgs, TResult>,
-  _: HistoryEvent,
+  { timerId }: TimerScheduledEvent,
 ): WorkflowState<TArgs, TResult> {
   return {
     ...state,
     current: { ...state.current, isReplaying: true },
+    timers: { [timerId]: state.generatorFn! },
     status: "sleeping",
   };
 };
 
 const timer_fired = function <TArgs extends Arg = Arg, TResult = unknown>(
   state: WorkflowState<TArgs, TResult>,
-  _: HistoryEvent,
+  { timerId }: TimerFiredEvent,
 ): WorkflowState<TArgs, TResult> {
+  const timerFn = state.timers[timerId];
+  if (timerFn === undefined) {
+    return state;
+  }
   return {
     ...state,
-    current: next(state.generatorFn!.next()),
     status: "running",
+    timers: { [timerId]: undefined },
+    current: next(timerFn.next()),
   };
 };
 
@@ -321,6 +366,32 @@ const invoke_http_response = function <
   }
 };
 
+const withBarrierOf = <TResult>(
+  n: number,
+  genFn: WorkflowGen<TResult>,
+  first = false,
+): WorkflowGen<TResult> => {
+  const results: Array<any> = [];
+  return {
+    ...genFn,
+    next: (
+      ...args: [] | [any]
+    ): IteratorResult<Command, TResult | undefined> => {
+      results.push(...args);
+      if (results.length <= n) {
+        if (first) {
+          return genFn.next(results[0]);
+        }
+        return genFn.next(results);
+      }
+      return {
+        done: false,
+        value: { name: "no_op" },
+      };
+    },
+  };
+};
+
 // deno-lint-ignore no-explicit-any
 const handlers: Record<HistoryEvent["type"], EventHandler<any>> = {
   workflow_canceled,
@@ -334,6 +405,8 @@ const handlers: Record<HistoryEvent["type"], EventHandler<any>> = {
   signal_received,
   local_activity_called,
   invoke_http_response,
+  waiting_any,
+  waiting_all,
   no_op,
 };
 

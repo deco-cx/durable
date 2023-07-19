@@ -43,6 +43,7 @@ export const getRouter = async (
   app.post("/executions", async ({ req: { raw: req } }) => {
     const { alias, input, metadata, id, runtimeParameters } =
       (await req.json()) as WorkflowExecution;
+
     await registry.verifySignature(alias, req);
     return Response.json(
       await service.startExecution(

@@ -24,6 +24,16 @@ export interface NoOpCommand extends CommandBase {
   name: "no_op";
 }
 
+export interface WaitAnyCommand extends CommandBase {
+  name: "wait_any";
+  commands: Command[];
+}
+
+export interface WaitAllCommand extends CommandBase {
+  name: "wait_all";
+  commands: Command[];
+}
+
 export interface StoreLocalAcitivtyResult<TResult> extends CommandBase {
   name: "store_local_activity_result";
   result?: TResult;
@@ -47,13 +57,12 @@ export interface SleepCommand extends CommandBase {
 /**
  * Invoke the given http endpoint
  */
-export interface InvokeHttpEndpointCommand<TBody = unknown>
-  extends CommandBase {
+export interface InvokeHttpEndpointCommand extends CommandBase {
   name: "invoke_http_endpoint";
   url: string;
   method?: string;
   headers?: Record<string, string>;
-  body?: TBody;
+  body?: string;
   responseFormat?: "complete" | "body-only";
 }
 /**
@@ -93,6 +102,8 @@ export interface CancelWorkflowCommand extends CommandBase {
 }
 
 export type Command =
+  | WaitAllCommand
+  | WaitAnyCommand
   | StoreLocalAcitivtyResult<any>
   | CancelWorkflowCommand
   | NoOpCommand
@@ -102,7 +113,7 @@ export type Command =
   | FinishWorkflowCommand<any>
   | DelegatedCommand
   | LocalActivityCommand<any, any>
-  | InvokeHttpEndpointCommand<any>;
+  | InvokeHttpEndpointCommand;
 
 const no_op = () => [];
 
@@ -115,6 +126,56 @@ const store_local_activity_result = (
   activityParams,
   result,
 }];
+
+const toCommandResult = (state: WorkflowState) => (cmd: Command) =>
+  handleCommand(cmd, state);
+
+/**
+ * Wait Any changes the current workflow function to have three parallel cached execution, the first finished will be used
+ * const genFn = () => [n] => cachedState(state)
+ */
+const wait_any = async (
+  { commands, isReplaying }: WaitAnyCommand,
+  state: WorkflowState,
+): Promise<HistoryEvent[]> => {
+  if (isReplaying) {
+    return [];
+  }
+  const events = await Promise.all(commands.map(toCommandResult(state)));
+
+  return [{
+    ...newEvent(),
+    type: "waiting_any",
+    commands: commands.map((cmd) => cmd.name),
+  }, ...events.flatMap((e) => e)];
+};
+
+const wait_all = async (
+  { commands, isReplaying }: WaitAllCommand,
+  state: WorkflowState,
+): Promise<HistoryEvent[]> => {
+  if (isReplaying) {
+    return [];
+  }
+  const events = await Promise.all(commands.map(toCommandResult(state)));
+  return [{
+    ...newEvent(),
+    type: "waiting_all",
+    commands: commands.map((cmd) => cmd.name),
+  }, ...events.flatMap((e) => e)];
+};
+
+const all = async (
+  { commands, isReplaying }: WaitAnyCommand,
+  state: WorkflowState,
+): Promise<HistoryEvent[]> => {
+  if (isReplaying) {
+    return [];
+  }
+  return await Promise.race(
+    commands.map((cmd) => handleCommand(cmd, state)),
+  );
+};
 
 const local_activity = async (
   { fn, args }: LocalActivityCommand,
@@ -130,10 +191,12 @@ const sleep = ({ isReplaying, until }: SleepCommand): HistoryEvent[] => {
   if (isReplaying) {
     return [];
   }
+  const timerId = crypto.randomUUID();
   return [
     {
       ...newEvent(),
       type: "timer_scheduled",
+      timerId,
       until,
     },
     {
@@ -141,6 +204,7 @@ const sleep = ({ isReplaying, until }: SleepCommand): HistoryEvent[] => {
       type: "timer_fired",
       timestamp: until,
       visibleAt: until,
+      timerId,
     },
   ];
 };
@@ -233,7 +297,7 @@ const invoke_http_endpoint = async (
   const resp = await signedFetch(url, {
     headers,
     method,
-    body: body ? JSON.stringify(body) : undefined,
+    body,
   });
 
   const hd: Record<string, string> = {};
@@ -255,7 +319,6 @@ const invoke_http_endpoint = async (
   } else {
     respBody = await resp.text();
   }
-
   return [{
     ...newEvent(),
     url,
@@ -281,6 +344,8 @@ const handleByCommand: Record<
   cancel_workflow,
   invoke_http_endpoint,
   store_local_activity_result,
+  wait_any,
+  wait_all,
 };
 
 export const handleCommand = async <TArgs extends Arg = Arg, TResult = unknown>(

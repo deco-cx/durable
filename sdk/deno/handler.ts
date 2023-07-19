@@ -1,7 +1,7 @@
 // deno-lint-ignore-file no-explicit-any
 import type {
-	ConnInfo,
-	Handler,
+  ConnInfo,
+  Handler,
 } from "https://deno.land/std@0.173.0/http/server.ts";
 import { RuntimeParameters } from "../../backends/backend.ts";
 import { Metadata } from "../../context.ts";
@@ -11,10 +11,10 @@ import { Workflow } from "../../runtime/core/workflow.ts";
 import { verifySignature } from "../../security/identity.ts";
 import { Arg } from "../../types.ts";
 import {
-	Channel,
-	LocalActivityCommand,
-	WorkflowContext,
-	asVerifiedChannel,
+  asVerifiedChannel,
+  Channel,
+  LocalActivityCommand,
+  WorkflowContext,
 } from "./mod.ts";
 
 export interface WebSocketRunRequest<
@@ -61,7 +61,7 @@ export interface RunRequest<
 
 export const arrToStream = (
   arr: unknown[],
-): CommandStream & { nextCommand: () => Command } => {
+): CommandStream & { nextCommand: () => Promise<Command> } => {
   let current = 0;
   let nextCommand: Command = undefined!;
   return {
@@ -72,7 +72,7 @@ export const arrToStream = (
       }
       return Promise.resolve(arr[current++]);
     },
-    nextCommand: () => nextCommand,
+    nextCommand: () => runLocalActivity(nextCommand),
   };
 };
 
@@ -148,7 +148,7 @@ export const workflowHTTPHandler = <
     const stream = arrToStream(runReq.results);
     await runner({ ...runReq, commands: stream });
     return Response.json(
-      stream.nextCommand(),
+      await stream.nextCommand(),
     );
   };
 };

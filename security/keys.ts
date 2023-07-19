@@ -75,7 +75,7 @@ export const setFromString = (publicKey: string, privateKey: string) => {
   if (!publicKey || !privateKey) {
     return;
   }
-  keys = Promise.resolve([
+  keys ??= Promise.resolve([
     parseJWK(publicKey),
     parseJWK(privateKey),
   ]);
