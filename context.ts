@@ -8,6 +8,7 @@ import {
   ScheduleActivityCommand,
   SleepCommand,
   WaitAllCommand,
+  WaitAnyCommand,
   WaitForSignalCommand,
 } from "./runtime/core/commands.ts";
 import { Arg } from "./types.ts";
@@ -121,11 +122,22 @@ export class WorkflowContext<TMetadata extends Metadata = Metadata> {
   }
 
   /**
+   * UNDER TEST, wait all has a bug where the items where delivered out of the order.
    * Wait until all commands has completed and return an array of results.
    */
-  public waitAll(commands: Command[]): WaitAllCommand {
+  public _experimentalWaitAll(commands: Command[]): WaitAllCommand {
     return {
       name: "wait_all",
+      commands,
+    };
+  }
+
+  /**
+   * Wait until any of commands has completed and return its result.
+   */
+  public waitAny(commands: Command[]): WaitAnyCommand {
+    return {
+      name: "wait_any",
       commands,
     };
   }

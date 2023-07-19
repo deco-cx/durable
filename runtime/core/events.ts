@@ -1,7 +1,8 @@
+import { WorkflowGen } from "../../sdk/deno/mod.ts";
 import { Arg } from "../../types.ts";
 import { Command } from "./commands.ts";
 import { WorkflowState } from "./state.ts";
-import { isNoArgFn, WorkflowGen } from "./workflow.ts";
+import { isNoArgFn } from "./workflow.ts";
 
 /**
  * Event is the base event
@@ -154,11 +155,21 @@ type EventHandler<TEvent extends HistoryEvent = HistoryEvent> = (
   event: TEvent,
 ) => WorkflowState;
 
-const next = <TResult>({
-  done,
-  value,
-}: IteratorResult<Command, TResult>): Command => {
-  return done ? { result: value, name: "finish_workflow" } : value;
+const next = <TArgs extends Arg = Arg, TResult = unknown>(
+  {
+    done,
+    value,
+  }: IteratorResult<Command, TResult>,
+  state: WorkflowState<TArgs, TResult>,
+): WorkflowState<TArgs, TResult> => {
+  const current: Command = done
+    ? { result: value, name: "finish_workflow" }
+    : value;
+  const newState = { ...state, current };
+  if (isBarrier<TArgs, TResult>(state.generatorFn!)) {
+    return state.generatorFn!.tryBreak(newState);
+  }
+  return newState;
 };
 
 export const no_op = function <TArgs extends Arg = Arg, TResult = unknown>(
@@ -173,9 +184,14 @@ export const waiting_any = function <
   TResult = unknown,
 >(
   state: WorkflowState<TArgs, TResult>,
-  _: HistoryEvent,
+  { commands }: WaitingAnyEvent,
 ): WorkflowState<TArgs, TResult> {
-  return state;
+  return {
+    ...state,
+    status: "sleeping",
+    current: { ...state.current, isReplaying: true },
+    generatorFn: withBarrierOf(commands.length, state.generatorFn!, true),
+  };
 };
 
 export const waiting_all = function <
@@ -219,12 +235,11 @@ export const signal_received = function <
   if (signalFn === undefined) {
     return state;
   }
-  return {
+  return next(signalFn.next(payload), {
     ...state,
     status: "running",
     signals: { [signal]: undefined },
-    current: next(signalFn.next(payload)),
-  };
+  });
 };
 
 const timer_scheduled = function <TArgs extends Arg = Arg, TResult = unknown>(
@@ -247,12 +262,11 @@ const timer_fired = function <TArgs extends Arg = Arg, TResult = unknown>(
   if (timerFn === undefined) {
     return state;
   }
-  return {
+  return next(timerFn.next(), {
     ...state,
     status: "running",
     timers: { [timerId]: undefined },
-    current: next(timerFn.next()),
-  };
+  });
 };
 
 const workflow_canceled = function <
@@ -276,7 +290,7 @@ const activity_completed = function <
     const genResult = exception
       ? state.generatorFn!.throw(exception)
       : state.generatorFn!.next(result);
-    return { ...state, current: next(genResult) };
+    return next(genResult, state);
   } catch (err) {
     return { ...state, exception: err, hasFinished: true };
   }
@@ -318,17 +332,13 @@ const workflow_started = function <TArgs extends Arg = Arg, TResult = unknown>(
     throw new Error("input not provided for genfn func");
   }
   const nextCmd = generatorFn.next();
-  const baseState = {
+
+  return next(nextCmd, {
     ...state,
     startedAt: timestamp,
     generatorFn,
-  };
-
-  return {
-    ...baseState,
     status: "running",
-    current: next(nextCmd),
-  };
+  });
 };
 
 const local_activity_called = function <
@@ -339,7 +349,7 @@ const local_activity_called = function <
   // deno-lint-ignore no-explicit-any
   { result }: LocalActivityCalledEvent<any>,
 ): WorkflowState<TArgs, TResult> {
-  return { ...state, current: next(state.generatorFn!.next(result)) };
+  return next(state.generatorFn!.next(result), state);
 };
 
 const invoke_http_response = function <
@@ -360,36 +370,71 @@ const invoke_http_response = function <
           ? { body, headers, status }
           : body,
       );
-    return { ...state, current: next(genResult) };
+    return next(genResult, state);
   } catch (err) {
     return { ...state, exception: err, hasFinished: true };
   }
 };
 
-const withBarrierOf = <TResult>(
-  n: number,
+class Barrier<TArgs extends Arg = Arg, TResult = unknown>
+  implements WorkflowGen<TResult> {
+  results: Array<any>;
+  canBreak = false;
+  constructor(
+    private size: number,
+    public genFn: WorkflowGen<TResult>,
+    private first = false,
+  ) {
+    this.results = new Array<any>();
+  }
+
+  tryBreak(
+    state: WorkflowState<TArgs, TResult>,
+  ): WorkflowState<TArgs, TResult> {
+    if (!this.canBreak) {
+      return state;
+    }
+    return { ...state, signals: {}, timers: {}, generatorFn: this.genFn };
+  }
+
+  next(...args: [] | [any]): IteratorResult<Command, TResult | undefined> {
+    this.results.push(...args);
+    if (this.results.length <= this.size) {
+      this.canBreak = true;
+      if (this.first) {
+        return this.genFn.next(this.results[0]);
+      }
+      return this.genFn.next(this.results);
+    }
+    return {
+      done: false,
+      value: { name: "no_op" },
+    };
+  }
+  return(
+    value: TResult | undefined,
+  ): IteratorResult<Command, TResult | undefined> {
+    return this.genFn.return(value);
+  }
+  throw(e: any): IteratorResult<Command, TResult | undefined> {
+    return this.genFn.throw(e);
+  }
+  [Symbol.iterator](): Generator<Command, TResult | undefined, any> {
+    return this.genFn[Symbol.iterator]();
+  }
+}
+const isBarrier = <TArgs extends Arg = Arg, TResult = unknown>(
+  genFn: Barrier<TArgs, TResult> | WorkflowGen<TResult>,
+): genFn is Barrier<TArgs, TResult> => {
+  return (genFn as Barrier<TArgs, TResult>).canBreak !== undefined;
+};
+
+const withBarrierOf = <TArgs extends Arg = Arg, TResult = unknown>(
+  size: number,
   genFn: WorkflowGen<TResult>,
   first = false,
-): WorkflowGen<TResult> => {
-  const results: Array<any> = [];
-  return {
-    ...genFn,
-    next: (
-      ...args: [] | [any]
-    ): IteratorResult<Command, TResult | undefined> => {
-      results.push(...args);
-      if (results.length <= n) {
-        if (first) {
-          return genFn.next(results[0]);
-        }
-        return genFn.next(results);
-      }
-      return {
-        done: false,
-        value: { name: "no_op" },
-      };
-    },
-  };
+): Barrier<TArgs, TResult> => {
+  return new Barrier<TArgs, TResult>(size, genFn, first);
 };
 
 // deno-lint-ignore no-explicit-any

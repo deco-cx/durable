@@ -43,7 +43,11 @@ export default function* orders(
   }
 
   yield ctx.log("Pretending some delay");
-  yield ctx.sleep(5000); // pretending some delay.
+  const result: { message: string } | undefined = yield ctx.waitAny([
+    ctx.sleep(15000),
+    ctx.waitForSignal("lets_go"),
+  ]); // pretending some delay.
+  yield ctx.log("received message", result?.message);
   yield ctx.log("Returning back to the execution");
   const order: Order = yield ctx.callLocalActivity(() => {
     return ({
