@@ -399,7 +399,7 @@ class Barrier<TArgs extends Arg = Arg, TResult = unknown>
 
   next(...args: [] | [any]): IteratorResult<Command, TResult | undefined> {
     this.results.push(...args);
-    if (this.results.length <= this.size) {
+    if ((this.results.length >= this.size) || this.first) {
       this.canBreak = true;
       if (this.first) {
         return this.genFn.next(this.results[0]);

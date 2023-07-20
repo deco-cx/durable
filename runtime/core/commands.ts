@@ -24,14 +24,19 @@ export interface NoOpCommand extends CommandBase {
   name: "no_op";
 }
 
+/**
+ * (TODO) mcandeia fix this
+ * For now only awaitable commands are supported
+ */
+export type AwaitableCommands = SleepCommand | WaitForSignalCommand;
 export interface WaitAnyCommand extends CommandBase {
   name: "wait_any";
-  commands: Command[];
+  commands: AwaitableCommands[];
 }
 
 export interface WaitAllCommand extends CommandBase {
   name: "wait_all";
-  commands: Command[];
+  commands: AwaitableCommands[];
 }
 
 export interface StoreLocalAcitivtyResult<TResult> extends CommandBase {
@@ -132,7 +137,6 @@ const toCommandResult = (state: WorkflowState) => (cmd: Command) =>
 
 /**
  * Wait Any changes the current workflow function to have three parallel cached execution, the first finished will be used
- * const genFn = () => [n] => cachedState(state)
  */
 const wait_any = async (
   { commands, isReplaying }: WaitAnyCommand,

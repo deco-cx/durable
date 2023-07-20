@@ -2,6 +2,7 @@ import { RuntimeParameters } from "./backends/backend.ts";
 import { PromiseOrValue } from "./promise.ts";
 import { makeRandomWithSeed } from "./randomSeed.ts";
 import {
+  AwaitableCommands,
   Command,
   InvokeHttpEndpointCommand,
   LocalActivityCommand,
@@ -125,7 +126,7 @@ export class WorkflowContext<TMetadata extends Metadata = Metadata> {
    * UNDER TEST, wait all has a bug where the items where delivered out of the order.
    * Wait until all commands has completed and return an array of results.
    */
-  public _experimentalWaitAll(commands: Command[]): WaitAllCommand {
+  public _experimentalWaitAll(commands: AwaitableCommands[]): WaitAllCommand {
     return {
       name: "wait_all",
       commands,
@@ -135,7 +136,7 @@ export class WorkflowContext<TMetadata extends Metadata = Metadata> {
   /**
    * Wait until any of commands has completed and return its result.
    */
-  public waitAny(commands: Command[]): WaitAnyCommand {
+  public waitAny(commands: AwaitableCommands[]): WaitAnyCommand {
     return {
       name: "wait_any",
       commands,
@@ -162,11 +163,14 @@ export class WorkflowContext<TMetadata extends Metadata = Metadata> {
    * Logs at least once with additional workflow information
    */
   public log(message: any, ...optionalParams: any[]): LocalActivityCommand {
-    return this.callLocalActivity(() => {
+    const executionId = this.executionId;
+    const fn = function () {
       console.log(
-        `[${new Date().toISOString()}][${this.executionId}]: ${message}`,
+        `[${new Date().toISOString()}][${executionId}]: ${message}`,
         ...optionalParams,
       );
-    });
+    };
+    Object.defineProperty(fn, "name", { value: "log" });
+    return this.callLocalActivity(fn);
   }
 }
