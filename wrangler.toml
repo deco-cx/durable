@@ -7,6 +7,9 @@ compatibility_flags = ["durable_object_alarms"]
 port = 8001
 local_protocol = "http"
 
+[[analytics_engine_datasets]]
+binding = "EXECUTIONS"
+
 [durable_objects]
 bindings = [
   { name = "WORKFLOWS", class_name = "Workflow" }
