@@ -28,8 +28,9 @@ export const buildRoutes = (wkflow: Workflow): Routes => {
         return Response.json(await wkflow.execution.get());
       },
       "POST": async (req: Request) => {
-        const body = await req.json();
-        await wkflow.execution.create(body as WorkflowExecution);
+        const body: WorkflowExecution = await req.json();
+        await wkflow.execution.create(body);
+        wkflow.executionId = body.id;
         return new Response(JSON.stringify(body), { status: 201 });
       },
     },
@@ -167,8 +168,9 @@ export class Workflow {
   execution: ReturnType<typeof durableExecution>;
   handler: (allowUnconfirmed?: boolean) => Promise<void>;
   router: Handler;
+  executionId: string | undefined;
 
-  constructor(state: DurableObjectState, env: Env) {
+  constructor(state: DurableObjectState, protected env: Env) {
     setFromString(env.WORKER_PUBLIC_KEY, env.WORKER_PRIVATE_KEY);
     this.state = state;
     this.handler = async () => {};
@@ -178,6 +180,7 @@ export class Workflow {
       const [registry] = await Promise.all([
         buildWorkflowRegistry(),
       ]);
+      this.executionId = await this.execution.get().then((exec) => exec?.id);
       // After initialization, future reads do not need to access storage.
       this.handler = (allowUnconfirmed = false) => {
         return runWorkflow(
@@ -213,12 +216,18 @@ export class Workflow {
   onHandleError(allowUnconfirmed = false) {
     return async (err: any) => {
       const retryCount = await this.addRetries(allowUnconfirmed);
+      this.env.EXECUTIONS?.writeDataPoint({
+        blobs: [(err as Error).message ?? "no_msg", "error"],
+        doubles: [retryCount],
+        indexes: [this.executionId!],
+      });
+
       if (retryCount >= MAX_RETRY_COUNT) {
         console.log(
-          `workflow ${(await this.execution.withGateOpts({ allowUnconfirmed })
-            .get())
-            ?.id} has reached a maximum retry count of ${MAX_RETRY_COUNT}`,
+          `workflow ${this
+            .executionId!} has reached a maximum retry count of ${MAX_RETRY_COUNT}`,
         );
+
         await this.zeroRetries(allowUnconfirmed);
         return; // returning OK so the alarm will not be retried
       }
@@ -253,6 +262,11 @@ export class Workflow {
         this.isCompleted(),
         this.zeroRetries(allowUnconfirmed),
       ]);
+      this.env.EXECUTIONS?.writeDataPoint({
+        blobs: [`${isCompleted}`, "success"],
+        doubles: [0],
+        indexes: [this.executionId!],
+      });
       const next = pending.sort(sortHistoryEventByDate)[0];
       if (next === undefined) {
         if (!isCompleted) {
@@ -275,13 +289,10 @@ export class Workflow {
   }
 
   async alarm() {
-    const executionPromise = this.execution.withGateOpts({
-      allowConcurrency: true,
-    }).get();
     try {
       await this.handler();
     } finally {
-      console.log(`alarm for execution ${(await executionPromise)?.id}`);
+      console.log(`alarm for execution ${this.executionId!}`);
     }
   }
 

@@ -7,6 +7,7 @@ export { Workflow } from "./workflow.ts";
 
 export interface Env {
   WORKFLOWS: DurableObjectNamespace;
+  EXECUTIONS: AnalyticsEngineDataset;
   WORKER_PUBLIC_KEY: string;
   WORKER_PRIVATE_KEY: string;
 }
