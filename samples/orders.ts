@@ -57,7 +57,7 @@ export default function* orders(
     });
   });
   yield ctx.fetch(
-    `http://localhost:8001/executions/${ctx.metadata?.parentWorkflowId}/signals/order_created`,
+    `http://localhost:8001/namespaces/x/executions/${ctx.metadata?.parentWorkflowId}/signals/order_created`,
     { method: "POST", body: JSON.stringify(order) },
   );
   return order;

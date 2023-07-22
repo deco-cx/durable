@@ -4,7 +4,7 @@ import {
   WorkflowExecution,
 } from "../backends/backend.ts";
 import { Metadata } from "../context.ts";
-import { WorkflowRegistry } from "../registry/registries.ts";
+import { WorkflowRuntimeRef } from "../registry/registries.ts";
 import { HistoryEvent, newEvent } from "../runtime/core/events.ts";
 import { Arg } from "../types.ts";
 
@@ -15,7 +15,7 @@ export interface WorkflowCreationOptions<
   TMetadata extends Metadata = Metadata,
 > {
   executionId?: string;
-  alias: string;
+  workflow: WorkflowRuntimeRef;
   metadata?: TMetadata;
   runtimeParameters?: RuntimeParameters;
 }
@@ -28,7 +28,6 @@ export interface Pagination<T> {
 export class WorkflowService {
   constructor(
     protected backend: DB,
-    protected registry: WorkflowRegistry,
   ) {
   }
   /**
@@ -119,7 +118,7 @@ export class WorkflowService {
    * @param input the workflow input
    */
   public startExecution<TArgs extends Arg = Arg>(
-    { alias, executionId, metadata, runtimeParameters }:
+    { workflow, executionId, metadata, runtimeParameters }:
       WorkflowCreationOptions,
     input?: [...TArgs],
   ): Promise<WorkflowExecution> {
@@ -127,7 +126,7 @@ export class WorkflowService {
     return this.backend.execution(wkflowInstanceId).withinTransaction(
       async (executionsDB) => {
         const execution: WorkflowExecution = {
-          alias,
+          workflow,
           id: wkflowInstanceId,
           status: "running",
           metadata,

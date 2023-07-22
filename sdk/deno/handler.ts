@@ -5,18 +5,22 @@ import type {
 } from "https://deno.land/std@0.173.0/http/server.ts";
 import { RuntimeParameters } from "../../backends/backend.ts";
 import { Metadata } from "../../context.ts";
-import { PromiseOrValue } from "../../promise.ts";
+import { verify } from "../../djwt.js";
 import { Command, runLocalActivity } from "../../runtime/core/commands.ts";
 import { Workflow } from "../../runtime/core/workflow.ts";
-import { verifySignature } from "../../security/identity.ts";
+import { newJwksIssuer } from "../../security/jwks.ts";
 import { Arg } from "../../types.ts";
 import {
-  asVerifiedChannel,
+  asChannel,
   Channel,
   LocalActivityCommand,
   WorkflowContext,
 } from "./mod.ts";
 
+export interface SecurityOptions {
+  durableAddr?: string;
+  publicKey?: string;
+}
 export interface WebSocketRunRequest<
   TArgs extends Arg = Arg,
   TMetadata extends Metadata = Metadata,
@@ -118,6 +122,17 @@ export const workflowRemoteRunner = <
   };
 };
 
+const initializeAuthority = (securityOpts?: SecurityOptions) => {
+  return securityOpts
+    ? newJwksIssuer({
+      remoteAddress: securityOpts.durableAddr ??
+        "https://durable-workers.deco-cx.workers.dev/.well_known/jwks.json",
+      kid: "durable-workers-key",
+      fallbackPublicKey: securityOpts.publicKey ??
+        "93u8uEX6gXEST9iKjA2rJ5BquUgHOBCS80EGALCIwGpnuCt6bvE2cQ19iPSvXQ4Ahq2GM1LiaLtIqk2ZLYzdheUDfB4fWUBgxTHPkRX_J84WM11z3meGP7jO8F_mnEqbzyzcjoFyagAqjW6TzVvSmcLWvmUE386coDaUcA6MFEtfsfAA5j1YTNYadvoWpeg4E-R1k0LaBmnngWv3H4AIwKjm23zcRQYJ2LrA1bI3qMMU0qyHLOJ2Ag_Ct1t6OsZmL55yojw6rej4ZFqDlAXYMW9_HHfnMbzx4_RFLHBdcqoJJnmvQraqxSxczMlA8-f4QUOc1q7sq4vzpILmQM9Nw",
+    })
+    : undefined;
+};
 /**
  * Exposes a workflow function as a http handler.
  * @param workflow the workflow function
@@ -135,12 +150,18 @@ export const workflowHTTPHandler = <
     metadata?: TMetadata,
     runtimeParameters?: RuntimeParameters,
   ) => TCtx,
-  workerPublicKey?: JsonWebKey,
+  securityOpts?: SecurityOptions,
 ): Handler => {
+  const authority = initializeAuthority(securityOpts);
   const runner = workflowRemoteRunner(workflow, Context);
   return async function (req) {
-    if (workerPublicKey) {
-      verifySignature(req, workerPublicKey);
+    if (authority) {
+      const authorization = req.headers.get("Authorization");
+      if (!authorization) {
+        return new Response(null, { status: 401 });
+      }
+      const [_, token] = authorization.split(" ");
+      await authority.verifyWith((key) => verify(token, key));
     }
     const runReq = await req
       .json() as HttpRunRequest<TArgs, TMetadata>;
@@ -230,6 +251,7 @@ const useChannel =
     };
     await runner({ ...runReq, commands });
   };
+
 /**
  * Exposes a workflow function as a http websocket handler.
  * @param workflow the workflow function
@@ -247,25 +269,32 @@ export const workflowWebSocketHandler = <
     metadata?: TMetadata,
     runtimeParameters?: RuntimeParameters,
   ) => TCtx,
-  workerPublicKey: PromiseOrValue<JsonWebKey>,
+  securityOpts?: SecurityOptions,
 ): Handler => {
+  const authority = initializeAuthority(securityOpts);
   const runner = workflowRemoteRunner<TArgs, TResult, TCtx, TMetadata>(
     workflow,
     Context,
   );
-  return function (req) {
+  return async function (req) {
     if (req.headers.get("upgrade") !== "websocket") {
       return new Response(null, { status: 501 });
     }
+    if (authority) {
+      const token = new URL(req.url).searchParams.get("token");
+      if (!token) {
+        return new Response(null, { status: 401 });
+      }
+      await authority.verifyWith((key) => verify(token, key));
+    }
     const { socket, response } = Deno.upgradeWebSocket(req);
 
-    asVerifiedChannel<Command, unknown>(
-      socket,
-      workerPublicKey,
-    ).then(useChannel(runner)).catch((err) => {
-      console.log("socket err", err);
-      socket.close();
-    });
+    asChannel<Command, unknown>(socket).then(useChannel(runner)).catch(
+      (err) => {
+        console.log("socket err", err);
+        socket.close();
+      },
+    );
 
     return response;
   };

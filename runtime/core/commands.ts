@@ -1,4 +1,6 @@
 // deno-lint-ignore-file no-explicit-any
+import { WorkflowService } from "../../api/service.ts";
+import { WorkflowExecution } from "../../backends/backend.ts";
 import { Activity } from "../../context.ts";
 import { isAwaitable, PromiseOrValue } from "../../promise.ts";
 import { signedFetch } from "../../security/fetch.ts";
@@ -87,6 +89,29 @@ export interface WaitForSignalCommand extends CommandBase {
   signal: string;
 }
 
+export interface StartExecutionCommand extends CommandBase {
+  name: "start_execution";
+  execution: Omit<WorkflowExecution, "id"> | WorkflowExecution;
+}
+
+export interface SendSignalCommand extends CommandBase {
+  name: "send_signal";
+  executionId: string;
+  signal: string;
+  payload: unknown;
+}
+
+export interface WaitForExecutionCompletionCommand extends CommandBase {
+  name: "wait_execution_completion";
+  executionId: string;
+}
+
+export interface CancelExecutionCommand extends CommandBase {
+  name: "cancel_execution";
+  executionId: string;
+  reason?: string;
+}
+
 export interface FinishWorkflowCommand<TResult = unknown> extends CommandBase {
   name: "finish_workflow";
   result: TResult;
@@ -118,9 +143,20 @@ export type Command =
   | FinishWorkflowCommand<any>
   | DelegatedCommand
   | LocalActivityCommand<any, any>
+  | StartExecutionCommand
+  | SendSignalCommand
+  | WaitForExecutionCompletionCommand
+  | CancelWorkflowCommand
+  | CancelExecutionCommand
   | InvokeHttpEndpointCommand;
 
 const no_op = () => [];
+
+// TODO(mcandeia) Implement Authorization at ServiceLevel so that we can avoid managing executions without proper authentication/authorization.
+const cancel_execution = () => [];
+const send_signal = () => [];
+const wait_execution_completion = () => [];
+const start_execution = () => [];
 
 const store_local_activity_result = (
   { result, activityName, activityParams }: StoreLocalAcitivtyResult<any>,
@@ -132,8 +168,9 @@ const store_local_activity_result = (
   result,
 }];
 
-const toCommandResult = (state: WorkflowState) => (cmd: Command) =>
-  handleCommand(cmd, state);
+const toCommandResult =
+  (state: WorkflowState, svc: WorkflowService) => (cmd: Command) =>
+    handleCommand(cmd, state, svc);
 
 /**
  * Wait Any changes the current workflow function to have three parallel cached execution, the first finished will be used
@@ -141,11 +178,12 @@ const toCommandResult = (state: WorkflowState) => (cmd: Command) =>
 const wait_any = async (
   { commands, isReplaying }: WaitAnyCommand,
   state: WorkflowState,
+  svc: WorkflowService,
 ): Promise<HistoryEvent[]> => {
   if (isReplaying) {
     return [];
   }
-  const events = await Promise.all(commands.map(toCommandResult(state)));
+  const events = await Promise.all(commands.map(toCommandResult(state, svc)));
 
   return [{
     ...newEvent(),
@@ -157,11 +195,12 @@ const wait_any = async (
 const wait_all = async (
   { commands, isReplaying }: WaitAllCommand,
   state: WorkflowState,
+  svc: WorkflowService,
 ): Promise<HistoryEvent[]> => {
   if (isReplaying) {
     return [];
   }
-  const events = await Promise.all(commands.map(toCommandResult(state)));
+  const events = await Promise.all(commands.map(toCommandResult(state, svc)));
   return [{
     ...newEvent(),
     type: "waiting_all",
@@ -172,12 +211,13 @@ const wait_all = async (
 const all = async (
   { commands, isReplaying }: WaitAnyCommand,
   state: WorkflowState,
+  svc: WorkflowService,
 ): Promise<HistoryEvent[]> => {
   if (isReplaying) {
     return [];
   }
   return await Promise.race(
-    commands.map((cmd) => handleCommand(cmd, state)),
+    commands.map((cmd) => handleCommand(cmd, state, svc)),
   );
 };
 
@@ -287,12 +327,13 @@ const wait_signal = (
 const delegated = async (
   { getCmd, isReplaying }: DelegatedCommand,
   state: WorkflowState,
+  svc: WorkflowService,
 ): Promise<HistoryEvent[]> => {
   if (isReplaying) {
     return [];
   }
   const cmd = await getCmd();
-  return handleCommand(cmd, state);
+  return handleCommand(cmd, state, svc);
 };
 
 const invoke_http_endpoint = async (
@@ -336,7 +377,11 @@ const invoke_http_endpoint = async (
 
 const handleByCommand: Record<
   Command["name"],
-  (c: any, state: WorkflowState<any, any>) => PromiseOrValue<HistoryEvent[]>
+  (
+    c: any,
+    state: WorkflowState<any, any>,
+    svc: WorkflowService,
+  ) => PromiseOrValue<HistoryEvent[]>
 > = {
   no_op,
   sleep,
@@ -350,13 +395,18 @@ const handleByCommand: Record<
   store_local_activity_result,
   wait_any,
   wait_all,
+  send_signal,
+  cancel_execution,
+  wait_execution_completion,
+  start_execution,
 };
 
 export const handleCommand = async <TArgs extends Arg = Arg, TResult = unknown>(
   c: Command,
   state: WorkflowState<TArgs, TResult>,
+  svc: WorkflowService,
 ): Promise<HistoryEvent[]> => {
-  const promiseOrValue = handleByCommand[c.name](c, state);
+  const promiseOrValue = handleByCommand[c.name](c, state, svc);
   return isAwaitable(promiseOrValue) ? await promiseOrValue : promiseOrValue;
 };
 

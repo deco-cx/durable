@@ -10,16 +10,22 @@ export default function* checkout(
   orderForm: OrderForm,
 ) {
   yield ctx.log("Starting checkout");
-  const { id } = yield ctx.fetch("http://localhost:8001/executions", {
-    method: "POST",
-    body: JSON.stringify({
-      alias: "local./orders",
-      metadata: {
-        parentWorkflowId: ctx.executionId,
-      },
-      input: [orderForm],
-    }),
-  });
+  const { id } = yield ctx.fetch(
+    "http://localhost:8001/namespaces/x/executions",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        workflow: {
+          type: "http",
+          url: "http://localhost:8000/orders",
+        },
+        metadata: {
+          parentWorkflowId: ctx.executionId,
+        },
+        input: [orderForm],
+      }),
+    },
+  );
 
   yield ctx.log("Created order workflow of", id);
 

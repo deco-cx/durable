@@ -1,10 +1,11 @@
+import { WorkflowService } from "../api/service.ts";
 import { PaginationParams, WorkflowExecution } from "../backends/backend.ts";
+import { dbForEnv } from "../backends/durableObjects/connect.ts";
 import {
   durableExecution,
   sortHistoryEventByDate,
 } from "../backends/durableObjects/db.ts";
 import { PromiseOrValue } from "../promise.ts";
-import { buildWorkflowRegistry } from "../registry/registries.ts";
 import { HistoryEvent } from "../runtime/core/events.ts";
 import { runWorkflow } from "../runtime/core/workflow.ts";
 import { setFromString } from "../security/keys.ts";
@@ -177,10 +178,9 @@ export class Workflow {
     this.execution = durableExecution(this.state.storage);
     this.router = router(buildRoutes(this));
     this.state.blockConcurrencyWhile(async () => {
-      const [registry] = await Promise.all([
-        buildWorkflowRegistry(),
-      ]);
       this.executionId = await this.execution.get().then((exec) => exec?.id);
+      const durableConnection = new WorkflowService(dbForEnv({ env }));
+
       // After initialization, future reads do not need to access storage.
       this.handler = (allowUnconfirmed = false) => {
         return runWorkflow(
@@ -188,7 +188,7 @@ export class Workflow {
             this.state.storage,
             { allowUnconfirmed },
           ),
-          registry,
+          durableConnection,
         ).then(this.onHandleSuccess(allowUnconfirmed)).catch(
           this.onHandleError(allowUnconfirmed),
         );

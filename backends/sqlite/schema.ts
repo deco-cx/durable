@@ -1,6 +1,6 @@
 export default `CREATE TABLE IF NOT EXISTS executions (
     id TEXT,
-    alias TEXT NOT NULL,
+    workflow JSON NOT NULL,
     completed_at TIMESTAMP NULL,
     output JSON NULL,
     input JSON NULL,
@@ -11,7 +11,6 @@ export default `CREATE TABLE IF NOT EXISTS executions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_executions_locked_until_status ON executions (locked_until, status);
-CREATE INDEX IF NOT EXISTS idx_executions_aliases ON executions (alias);
 
 CREATE TABLE IF NOT EXISTS pending_events (
     id TEXT,

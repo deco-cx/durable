@@ -85,7 +85,7 @@ const executionFor = (
 
 export interface DBContext {
   env: Env;
-  signal: AbortSignal;
+  signal?: AbortSignal;
 }
 export const dbForEnv = (ctx: DBContext): DB => {
   return {

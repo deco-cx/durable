@@ -68,3 +68,14 @@ export {
   workflowHTTPHandler,
   workflowWebSocketHandler,
 };
+
+export type { ClientOptions } from "../../client/http.ts";
+
+export {
+  cancel,
+  get,
+  history,
+  init,
+  signal,
+  start,
+} from "../../client/http.ts";

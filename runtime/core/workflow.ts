@@ -1,13 +1,14 @@
 import { Execution } from "../../backends/backend.ts";
 import { Metadata, WorkflowContext } from "../../context.ts";
-import { WorkflowRegistry } from "../../registry/registries.ts";
 import { Arg } from "../../types.ts";
 import { Command } from "./commands.ts";
 
+import { WorkflowService } from "../../api/service.ts";
 import { WorkflowExecution } from "../../backends/backend.ts";
 import { handleCommand } from "../../runtime/core/commands.ts";
-import { apply, HistoryEvent, newEvent } from "../../runtime/core/events.ts";
+import { apply, HistoryEvent } from "../../runtime/core/events.ts";
 import { WorkflowState, zeroState } from "../../runtime/core/state.ts";
+import { runtimeBuilder } from "../builders.ts";
 
 /**
  * WorkflowGen is the generator function returned by a workflow function.
@@ -55,6 +56,7 @@ const workflowExecutionHandler = <
   TResult = unknown,
 >(
   workflow: Workflow<TArgs, TResult, WorkflowContext<Metadata>>,
+  svc: WorkflowService,
 ) =>
 async (
   executionId: string,
@@ -91,7 +93,7 @@ async (
       !state.current.isReplaying
     ) {
       try {
-        const newEvents = await handleCommand(state.current, state);
+        const newEvents = await handleCommand(state.current, state, svc);
         if (newEvents.length === 0) {
           break;
         }
@@ -150,7 +152,7 @@ async (
 
 export const runWorkflow = <TArgs extends Arg = Arg, TResult = unknown>(
   clientDb: Execution,
-  registry: WorkflowRegistry,
+  svc: WorkflowService,
 ) => {
   return clientDb.withinTransaction(async (executionDB) => {
     const maybeInstance = await executionDB.get();
@@ -158,13 +160,15 @@ export const runWorkflow = <TArgs extends Arg = Arg, TResult = unknown>(
       throw new Error("workflow not found");
     }
     const workflow = maybeInstance
-      ? await registry.get<TArgs, TResult>(maybeInstance.alias)
+      ? await runtimeBuilder[maybeInstance.workflow.type](
+        maybeInstance.workflow,
+      )
       : undefined;
 
     if (workflow === undefined) {
       throw new Error("workflow not found");
     }
-    const handler = workflowExecutionHandler(workflow);
+    const handler = workflowExecutionHandler(workflow, svc);
     return handler(maybeInstance.id, maybeInstance, executionDB);
   });
 };

@@ -1,7 +1,6 @@
 import { Hono } from "hono";
 import { getRouter } from "../api/router.ts";
 import { dbForEnv } from "../backends/durableObjects/connect.ts";
-import { buildWorkflowRegistry } from "../registry/registries.ts";
 import { setFromString } from "../security/keys.ts";
 export { Workflow } from "./workflow.ts";
 
@@ -12,7 +11,6 @@ export interface Env {
   WORKER_PRIVATE_KEY: string;
 }
 
-const registry = await buildWorkflowRegistry();
 export default {
   async fetch(
     req: Request,
@@ -21,7 +19,7 @@ export default {
   ): Promise<Response> {
     setFromString(env.WORKER_PUBLIC_KEY, env.WORKER_PRIVATE_KEY);
     const db = dbForEnv({ env, signal: req.signal });
-    const router = await getRouter(new Hono(), db, registry);
+    const router = await getRouter(new Hono(), db);
     return router.fetch(req, env, ctx);
   },
 };

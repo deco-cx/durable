@@ -1,5 +1,6 @@
 import { Metadata } from "../context.ts";
 import { PromiseOrValue } from "../promise.ts";
+import { WorkflowRuntimeRef } from "../registry/registries.ts";
 import { HistoryEvent } from "../runtime/core/events.ts";
 import { Arg } from "../types.ts";
 
@@ -86,7 +87,7 @@ export interface WorkflowExecution<
   TMetadata extends Metadata = Metadata,
 > {
   id: string;
-  alias: string;
+  workflow: WorkflowRuntimeRef;
   completedAt?: Date;
   status: WorkflowStatus;
   metadata?: TMetadata;
