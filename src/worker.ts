@@ -18,13 +18,18 @@ export default {
     env: Env,
     ctx: ExecutionContext,
   ): Promise<Response> {
-    setFromString(env.WORKER_PUBLIC_KEY, env.WORKER_PRIVATE_KEY);
-    issuer ??= newJwtIssuer({
-      private: env.WORKER_PRIVATE_KEY,
-      public: env.WORKER_PUBLIC_KEY,
-    });
-    const db = dbForEnv({ env, signal: req.signal });
-    const router = await getRouter(new Hono(), db, await issuer);
-    return router.fetch(req, env, ctx);
+    try {
+      setFromString(env.WORKER_PUBLIC_KEY, env.WORKER_PRIVATE_KEY);
+      issuer ??= newJwtIssuer({
+        private: env.WORKER_PRIVATE_KEY,
+        public: env.WORKER_PUBLIC_KEY,
+      });
+      const db = dbForEnv({ env, signal: req.signal });
+      const router = await getRouter(new Hono(), db, await issuer);
+      return router.fetch(req, env, ctx);
+    } catch (err) {
+      console.log("error", err);
+      throw err;
+    }
   },
 };
