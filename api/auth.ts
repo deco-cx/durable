@@ -88,6 +88,7 @@ export const withAuth = (): MiddlewareHandler<
       throw unauthorized();
     }
     const token = parts[1];
+		console.log("token", token)
 
     const payload = await jwksIssuer.verifyWith<JwtPayload>((key) =>
       verify(token, key)
