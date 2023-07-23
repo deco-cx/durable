@@ -97,7 +97,7 @@ export const durableExecution = (
   db: DurableObjectTransaction | DurableObjectStorage,
   gateOpts: GateOptions = { allowUnconfirmed: false },
 ) => {
-  const executions = useSingleton<WorkflowExecution>(
+  const executions = useSingleton<WorkflowExecution<any, any, any>>(
     Keys.execution,
     db,
     gateOpts,

@@ -1,13 +1,14 @@
 import { Execution } from "../../backends/backend.ts";
 import { Metadata, WorkflowContext } from "../../context.ts";
-import { WorkflowRegistry } from "../../registry/registries.ts";
 import { Arg } from "../../types.ts";
 import { Command } from "./commands.ts";
 
+import { WorkflowService } from "../../api/service.ts";
 import { WorkflowExecution } from "../../backends/backend.ts";
 import { handleCommand } from "../../runtime/core/commands.ts";
-import { apply, HistoryEvent, newEvent } from "../../runtime/core/events.ts";
+import { apply, HistoryEvent } from "../../runtime/core/events.ts";
 import { WorkflowState, zeroState } from "../../runtime/core/state.ts";
+import { runtimeBuilder } from "../builders.ts";
 
 /**
  * WorkflowGen is the generator function returned by a workflow function.
@@ -58,7 +59,7 @@ const workflowExecutionHandler = <
 ) =>
 async (
   executionId: string,
-  workflowExecution: WorkflowExecution,
+  workflowExecution: WorkflowExecution<TArgs, TResult, Metadata>,
   execution: Execution,
 ) => {
   try {
@@ -68,9 +69,7 @@ async (
     ]);
 
     const ctx = new WorkflowContext(
-      executionId,
-      workflowExecution.metadata,
-      workflowExecution.runtimeParameters,
+      { ...workflowExecution, id: executionId },
     );
     const workflowFn: WorkflowGenFn<TArgs, TResult> = (
       ...args: [...TArgs]
@@ -150,21 +149,24 @@ async (
 
 export const runWorkflow = <TArgs extends Arg = Arg, TResult = unknown>(
   clientDb: Execution,
-  registry: WorkflowRegistry,
+  svc: WorkflowService,
 ) => {
   return clientDb.withinTransaction(async (executionDB) => {
-    const maybeInstance = await executionDB.get();
+    const maybeInstance = await executionDB.get<TArgs, TResult>();
     if (maybeInstance === undefined) {
       throw new Error("workflow not found");
     }
     const workflow = maybeInstance
-      ? await registry.get<TArgs, TResult>(maybeInstance.alias)
+      ? await runtimeBuilder[maybeInstance.workflow.type](
+        maybeInstance.workflow,
+        await svc.getSignedToken(maybeInstance.namespace),
+      )
       : undefined;
 
     if (workflow === undefined) {
       throw new Error("workflow not found");
     }
-    const handler = workflowExecutionHandler(workflow);
+    const handler = workflowExecutionHandler<TArgs, TResult>(workflow);
     return handler(maybeInstance.id, maybeInstance, executionDB);
   });
 };

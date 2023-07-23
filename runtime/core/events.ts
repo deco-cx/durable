@@ -56,6 +56,7 @@ export interface WorkflowStartedEvent<TArgs extends Arg = Arg> extends Event {
 export interface WorkflowFinishedEvent<TResult = unknown> extends Event {
   type: "workflow_finished";
   result?: TResult;
+  exception?: unknown;
 }
 
 /**
@@ -305,8 +306,19 @@ const activity_started = function <TArgs extends Arg = Arg, TResult = unknown>(
 
 const workflow_finished = function <TArgs extends Arg = Arg, TResult = unknown>(
   state: WorkflowState<TArgs, TResult>,
-  { result: output, timestamp: finishedAt }: WorkflowFinishedEvent<TResult>,
+  { result: output, timestamp: finishedAt, exception }: WorkflowFinishedEvent<
+    TResult
+  >,
 ): WorkflowState<TArgs, TResult> {
+  if (exception) {
+    return {
+      ...state,
+      hasFinished: true,
+      status: "completed",
+      exception,
+      finishedAt,
+    };
+  }
   state.generatorFn!.return(output);
   return {
     ...state,
@@ -357,7 +369,7 @@ const invoke_http_response = function <
   TResult = unknown,
 >(
   state: WorkflowState<TArgs, TResult>,
-  { body, headers, status, responseFormat }: InvokeHttpResponseEvent,
+  { body, headers, status, responseFormat, timestamp }: InvokeHttpResponseEvent,
 ): WorkflowState<TArgs, TResult> {
   try {
     const genResult = status >= 400
@@ -372,7 +384,13 @@ const invoke_http_response = function <
       );
     return next(genResult, state);
   } catch (err) {
-    return { ...state, exception: err, hasFinished: true };
+    return {
+      ...state,
+      exception: err,
+      status: "completed",
+      hasFinished: true,
+      finishedAt: timestamp,
+    };
   }
 };
 

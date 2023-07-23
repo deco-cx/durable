@@ -3,60 +3,75 @@ import type {
   ConnInfo,
   Handler,
 } from "https://deno.land/std@0.173.0/http/server.ts";
-import { RuntimeParameters } from "../../backends/backend.ts";
+import { defaultOpts } from "../../client/init.ts";
 import { Metadata } from "../../context.ts";
-import { PromiseOrValue } from "../../promise.ts";
+import { verify } from "../../djwt.js";
 import { Command, runLocalActivity } from "../../runtime/core/commands.ts";
 import { Workflow } from "../../runtime/core/workflow.ts";
-import { verifySignature } from "../../security/identity.ts";
+import { newJwksIssuer } from "../../security/jwks.ts";
 import { Arg } from "../../types.ts";
+import type { ClientOptions, JwtPayload } from "./mod.ts";
 import {
-  asVerifiedChannel,
+  asChannel,
   Channel,
   LocalActivityCommand,
   WorkflowContext,
+  WorkflowExecution,
 } from "./mod.ts";
+
+const isValid = ({ exp, aud }: JwtPayload, audience?: string) => {
+  if (exp) {
+    return new Date(exp) >= new Date();
+  }
+  if (!audience) {
+    return true;
+  }
+  if (!aud) {
+    return false;
+  }
+  return Array.isArray(aud)
+    ? aud.some((d) => d === audience)
+    : aud === audience;
+};
 
 export interface WebSocketRunRequest<
   TArgs extends Arg = Arg,
+  TResult = unknown,
   TMetadata extends Metadata = Metadata,
 > {
   input: [...TArgs];
-  executionId: string;
-  metadata: TMetadata;
-  runtimeParameters?: RuntimeParameters;
+  execution: WorkflowExecution<TArgs, TResult, TMetadata>;
 }
 
 export const isWebSocketRunReq = <
   TArgs extends Arg = Arg,
+  TResult = unknown,
   TMetadata extends Metadata = Metadata,
 >(
-  value: unknown | WebSocketRunRequest<TArgs, TMetadata>,
-): value is WebSocketRunRequest<TArgs, TMetadata> => {
+  value: unknown | WebSocketRunRequest<TArgs, TResult, TMetadata>,
+): value is WebSocketRunRequest<TArgs, TResult, TMetadata> => {
   return Array.isArray((value as WebSocketRunRequest)?.input) &&
-    typeof (value as WebSocketRunRequest).executionId === "string";
+    typeof (value as WebSocketRunRequest).execution?.id === "string";
 };
 
 export interface HttpRunRequest<
   TArgs extends Arg = Arg,
+  TResult = unknown,
   TMetadata extends Metadata = Metadata,
 > {
   input: [...TArgs];
   results: unknown[];
-  executionId: string;
-  metadata: TMetadata;
-  runtimeParameters?: RuntimeParameters;
+  execution: WorkflowExecution<TArgs, TResult, TMetadata>;
 }
 
 export interface RunRequest<
   TArgs extends Arg = Arg,
+  TResult = unknown,
   TMetadata extends Metadata = Metadata,
 > {
   input: [...TArgs];
   commands: CommandStream;
-  executionId: string;
-  metadata: TMetadata;
-  runtimeParameters?: RuntimeParameters;
+  execution: WorkflowExecution<TArgs, TResult, TMetadata>;
 }
 
 export const arrToStream = (
@@ -89,23 +104,31 @@ export const workflowRemoteRunner = <
 >(
   workflow: Workflow<TArgs, TResult, TCtx>,
   Context: (
-    executionId: string,
-    metadata?: TMetadata,
-    runtimeParameters?: RuntimeParameters,
+    execution: WorkflowExecution<TArgs, TResult, TMetadata>,
   ) => TCtx,
-): (req: RunRequest<TArgs, TMetadata>) => Promise<void> => {
+): (req: RunRequest<TArgs, TResult, TMetadata>) => Promise<void> => {
   return async function (
-    { commands, input, executionId, metadata, runtimeParameters }: RunRequest<
+    { commands, input, execution }: RunRequest<
       TArgs,
+      TResult,
       TMetadata
     >,
   ) {
-    const ctx = Context(executionId, metadata, runtimeParameters);
+    const ctx = Context(execution);
 
     const genFn = workflow(ctx, ...input);
     let cmd = genFn.next();
     while (!cmd.done) {
       const event = await commands.issue(cmd.value);
+      if ((event as { isException: true; error: any })?.isException) {
+        try {
+          cmd = genFn.throw((event as { error: any }).error);
+        } catch (e) {
+          await commands.issue({ name: "finish_workflow", exception: e });
+          return;
+        }
+        continue;
+      }
       if ((event as { isClosed: true })?.isClosed) {
         return;
       }
@@ -118,6 +141,18 @@ export const workflowRemoteRunner = <
   };
 };
 
+const initializeAuthority = (opts?: ClientOptions | null) => {
+  return opts
+    ? newJwksIssuer({
+      remoteAddress: opts.durableEndpoint
+        ? `${opts.durableEndpoint}/.well_known/jwks.json`
+        : "https://durable-workers.deco-cx.workers.dev/.well_known/jwks.json",
+      kid: "durable-workers-key",
+      fallbackPublicKey: opts.publicKey ??
+        "93u8uEX6gXEST9iKjA2rJ5BquUgHOBCS80EGALCIwGpnuCt6bvE2cQ19iPSvXQ4Ahq2GM1LiaLtIqk2ZLYzdheUDfB4fWUBgxTHPkRX_J84WM11z3meGP7jO8F_mnEqbzyzcjoFyagAqjW6TzVvSmcLWvmUE386coDaUcA6MFEtfsfAA5j1YTNYadvoWpeg4E-R1k0LaBmnngWv3H4AIwKjm23zcRQYJ2LrA1bI3qMMU0qyHLOJ2Ag_Ct1t6OsZmL55yojw6rej4ZFqDlAXYMW9_HHfnMbzx4_RFLHBdcqoJJnmvQraqxSxczMlA8-f4QUOc1q7sq4vzpILmQM9Nw",
+    })
+    : undefined;
+};
 /**
  * Exposes a workflow function as a http handler.
  * @param workflow the workflow function
@@ -131,19 +166,27 @@ export const workflowHTTPHandler = <
 >(
   workflow: Workflow<TArgs, TResult, TCtx>,
   Context: (
-    executionId: string,
-    metadata?: TMetadata,
-    runtimeParameters?: RuntimeParameters,
+    execution: WorkflowExecution<TArgs, TResult, TMetadata>,
   ) => TCtx,
-  workerPublicKey?: JsonWebKey,
 ): Handler => {
+  const authority = initializeAuthority(defaultOpts);
   const runner = workflowRemoteRunner(workflow, Context);
   return async function (req) {
-    if (workerPublicKey) {
-      verifySignature(req, workerPublicKey);
+    if (authority) {
+      const authorization = req.headers.get("Authorization");
+      if (!authorization) {
+        return new Response(null, { status: 401 });
+      }
+      const [_, token] = authorization.split(" ");
+      const jwtPayload: JwtPayload = await authority.verifyWith((key) =>
+        verify(token, key)
+      );
+      if (!isValid(jwtPayload, defaultOpts?.audience)) {
+        return new Response(null, { status: 403 });
+      }
     }
     const runReq = await req
-      .json() as HttpRunRequest<TArgs, TMetadata>;
+      .json() as HttpRunRequest<TArgs, TResult, TMetadata>;
 
     const stream = arrToStream(runReq.results);
     await runner({ ...runReq, commands: stream });
@@ -181,8 +224,7 @@ export const useWorkflowRoutes = (
     const route = `${baseRoute}${alias}`;
     routes[route] = workflowHTTPHandler(
       func,
-      (executionId, metadata, runtimeParameters) =>
-        new WorkflowContext(executionId, metadata, runtimeParameters),
+      (execution) => new WorkflowContext(execution),
     );
   }
   return (req: Request, conn: ConnInfo) => {
@@ -199,37 +241,41 @@ export interface CommandStream {
   issue: (cmd: Command) => Promise<unknown | { isClosed: true }>;
 }
 
-const useChannel =
-  <TArgs extends Arg = Arg, TMetadata extends Metadata = Metadata>(
-    runner: (req: RunRequest<TArgs, TMetadata>) => Promise<void>,
-  ) =>
-  async (chan: Channel<Command, unknown | WebSocketRunRequest>) => {
-    const runReq = await chan.recv();
-    if (!isWebSocketRunReq<TArgs, TMetadata>(runReq)) {
-      throw new Error(`received unexpected message ${JSON.stringify(runReq)}`);
+const useChannel = <
+  TArgs extends Arg = Arg,
+  TResult = unknown,
+  TMetadata extends Metadata = Metadata,
+>(
+  runner: (req: RunRequest<TArgs, TResult, TMetadata>) => Promise<void>,
+) =>
+async (chan: Channel<Command, unknown | WebSocketRunRequest>) => {
+  const runReq = await chan.recv();
+  if (!isWebSocketRunReq<TArgs, TResult, TMetadata>(runReq)) {
+    throw new Error(`received unexpected message ${JSON.stringify(runReq)}`);
+  }
+  const recvEvent = async (cmd: Command) => {
+    const closed = await Promise.race([chan.closed.wait(), chan.send(cmd)]);
+    if (closed === true) {
+      return { isClosed: true };
     }
-    const recvEvent = async (cmd: Command) => {
-      const closed = await Promise.race([chan.closed.wait(), chan.send(cmd)]);
-      if (closed === true) {
-        return { isClosed: true };
-      }
-      const event = await Promise.race([chan.recv(), chan.closed.wait()]);
-      if (event === true) {
-        return { isClosed: true };
+    const event = await Promise.race([chan.recv(), chan.closed.wait()]);
+    if (event === true) {
+      return { isClosed: true };
+    }
+    return event;
+  };
+  const commands: CommandStream = {
+    issue: async (cmd: Command) => {
+      const event = await recvEvent(cmd);
+      if ((event as LocalActivityCommand)?.name === "local_activity") { // the server should send the command back to allow it to run.
+        return recvEvent(await runLocalActivity(cmd));
       }
       return event;
-    };
-    const commands: CommandStream = {
-      issue: async (cmd: Command) => {
-        const event = await recvEvent(cmd);
-        if ((event as LocalActivityCommand)?.name === "local_activity") { // the server should send the command back to allow it to run.
-          return recvEvent(await runLocalActivity(cmd));
-        }
-        return event;
-      },
-    };
-    await runner({ ...runReq, commands });
+    },
   };
+  await runner({ ...runReq, commands });
+};
+
 /**
  * Exposes a workflow function as a http websocket handler.
  * @param workflow the workflow function
@@ -243,29 +289,38 @@ export const workflowWebSocketHandler = <
 >(
   workflow: Workflow<TArgs, TResult, TCtx>,
   Context: (
-    executionId: string,
-    metadata?: TMetadata,
-    runtimeParameters?: RuntimeParameters,
+    execution: WorkflowExecution<TArgs, TResult, TMetadata>,
   ) => TCtx,
-  workerPublicKey: PromiseOrValue<JsonWebKey>,
 ): Handler => {
+  const authority = initializeAuthority(defaultOpts);
   const runner = workflowRemoteRunner<TArgs, TResult, TCtx, TMetadata>(
     workflow,
     Context,
   );
-  return function (req) {
+  return async function (req) {
     if (req.headers.get("upgrade") !== "websocket") {
       return new Response(null, { status: 501 });
     }
+    if (authority) {
+      const token = new URL(req.url).searchParams.get("token");
+      if (!token) {
+        return new Response(null, { status: 401 });
+      }
+      const jwtPayload: JwtPayload = await authority.verifyWith((key) =>
+        verify(token, key)
+      ); // TODO(mcandeia) validate EXP and Audience
+      if (!isValid(jwtPayload, defaultOpts?.audience)) {
+        return new Response(null, { status: 403 });
+      }
+    }
     const { socket, response } = Deno.upgradeWebSocket(req);
 
-    asVerifiedChannel<Command, unknown>(
-      socket,
-      workerPublicKey,
-    ).then(useChannel(runner)).catch((err) => {
-      console.log("socket err", err);
-      socket.close();
-    });
+    asChannel<Command, unknown>(socket).then(useChannel(runner)).catch(
+      (err) => {
+        console.log("socket err", err);
+        socket.close();
+      },
+    );
 
     return response;
   };

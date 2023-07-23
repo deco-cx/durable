@@ -32,7 +32,7 @@ const processJSON = (row: Record<string, any>) => {
       row[column] = JSON.parse(row[column]);
     }
   };
-  ["input", "output", "metadata", "attributes"].forEach((col) =>
+  ["input", "workflow", "output", "metadata", "attributes"].forEach((col) =>
     processRowAndColumn(row, col)
   );
   return row;

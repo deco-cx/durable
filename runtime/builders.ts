@@ -6,6 +6,7 @@ import { websocket } from "./websocket.ts";
 
 type RuntimeFactory = (
   e: WorkflowRuntimeRef,
+  jwtToken: string,
 ) => PromiseOrValue<GenericWorkflow>;
 
 export const runtimeBuilder: Record<

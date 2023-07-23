@@ -1,4 +1,5 @@
 // deno-lint-ignore-file no-explicit-any
+import { WorkflowService } from "../../api/service.ts";
 import { Activity } from "../../context.ts";
 import { isAwaitable, PromiseOrValue } from "../../promise.ts";
 import { signedFetch } from "../../security/fetch.ts";
@@ -81,7 +82,6 @@ export interface ScheduleActivityCommand<
   input: [...TArgs];
   name: "schedule_activity";
 }
-
 export interface WaitForSignalCommand extends CommandBase {
   name: "wait_signal";
   signal: string;
@@ -89,7 +89,8 @@ export interface WaitForSignalCommand extends CommandBase {
 
 export interface FinishWorkflowCommand<TResult = unknown> extends CommandBase {
   name: "finish_workflow";
-  result: TResult;
+  result?: TResult;
+  exception?: unknown;
 }
 
 export interface LocalActivityCommand<
@@ -213,10 +214,13 @@ const sleep = ({ isReplaying, until }: SleepCommand): HistoryEvent[] => {
   ];
 };
 
-const finish_workflow = ({ result }: FinishWorkflowCommand): HistoryEvent[] => [
+const finish_workflow = (
+  { result, exception }: FinishWorkflowCommand,
+): HistoryEvent[] => [
   {
     ...newEvent(),
     result,
+    exception,
     type: "workflow_finished",
   },
 ];
@@ -336,7 +340,10 @@ const invoke_http_endpoint = async (
 
 const handleByCommand: Record<
   Command["name"],
-  (c: any, state: WorkflowState<any, any>) => PromiseOrValue<HistoryEvent[]>
+  (
+    c: any,
+    state: WorkflowState<any, any>,
+  ) => PromiseOrValue<HistoryEvent[]>
 > = {
   no_op,
   sleep,
