@@ -60,7 +60,7 @@ const workflowExecutionHandler = <
 ) =>
 async (
   executionId: string,
-  workflowExecution: WorkflowExecution,
+  workflowExecution: WorkflowExecution<TArgs, TResult, Metadata>,
   execution: Execution,
 ) => {
   try {
@@ -70,9 +70,7 @@ async (
     ]);
 
     const ctx = new WorkflowContext(
-      executionId,
-      workflowExecution.metadata,
-      workflowExecution.runtimeParameters,
+      { ...workflowExecution, id: executionId },
     );
     const workflowFn: WorkflowGenFn<TArgs, TResult> = (
       ...args: [...TArgs]
@@ -155,20 +153,21 @@ export const runWorkflow = <TArgs extends Arg = Arg, TResult = unknown>(
   svc: WorkflowService,
 ) => {
   return clientDb.withinTransaction(async (executionDB) => {
-    const maybeInstance = await executionDB.get();
+    const maybeInstance = await executionDB.get<TArgs, TResult>();
     if (maybeInstance === undefined) {
       throw new Error("workflow not found");
     }
     const workflow = maybeInstance
       ? await runtimeBuilder[maybeInstance.workflow.type](
         maybeInstance.workflow,
+        await svc.getSignedToken(maybeInstance.namespace), // TODO(mcandeia) change this
       )
       : undefined;
 
     if (workflow === undefined) {
       throw new Error("workflow not found");
     }
-    const handler = workflowExecutionHandler(workflow, svc);
+    const handler = workflowExecutionHandler<TArgs, TResult>(workflow, svc);
     return handler(maybeInstance.id, maybeInstance, executionDB);
   });
 };

@@ -1,6 +1,8 @@
+import { Metadata } from "../../context.ts";
 import { PromiseOrValue } from "../../promise.ts";
 import { HistoryEvent } from "../../runtime/core/events.ts";
 import { Env } from "../../src/worker.ts";
+import { Arg } from "../../types.ts";
 import {
   DB,
   Events,
@@ -68,9 +70,13 @@ const executionFor = (
     }).then(parseOrThrow<void>());
   };
   return {
-    get: () => {
+    get: <
+      TArgs extends Arg = Arg,
+      TResult = unknown,
+      TMetadata extends Metadata = Metadata,
+    >() => {
       return durable.fetch(withOrigin("/"), { method: "GET", signal }).then(
-        parseOrThrow<WorkflowExecution>(),
+        parseOrThrow<WorkflowExecution<TArgs, TResult, TMetadata>>(),
       );
     },
     pending: eventsFor({ signal, ...rest }, "/pending", durable),

@@ -2,6 +2,7 @@ import type { Pagination } from "../api/service.ts";
 import type {
   PaginationParams,
   WorkflowExecution,
+  WorkflowExecutionBase,
 } from "../backends/backend.ts";
 import type { HistoryEvent } from "../runtime/core/events.ts";
 
@@ -97,7 +98,7 @@ const fetchJSON = async <T>(
 };
 
 export const start = async (
-  exec: Omit<WorkflowExecution, "id"> | WorkflowExecution,
+  exec: WorkflowExecutionBase,
   opts?: ClientOptions,
 ): Promise<WorkflowExecution> => {
   return fetchJSON<WorkflowExecution>(`/executions`, opts, {

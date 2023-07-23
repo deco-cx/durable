@@ -9,6 +9,7 @@ declare module "hono" {
   interface ContextVariableMap {
     principal: JwtPayload;
     checkIsAllowed: (wkflow: WorkflowRuntimeRef) => void;
+    namespace: string;
   }
 }
 
@@ -92,6 +93,7 @@ export const withAuth = (): MiddlewareHandler<
       verify(token, key)
     );
     const namespace = ctx.req.param("namespace");
+    ctx.set("namespace", namespace);
 
     if (
       !isAllowed(namespace, payload)

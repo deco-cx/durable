@@ -8,6 +8,7 @@ import {
 import { PromiseOrValue } from "../promise.ts";
 import { HistoryEvent } from "../runtime/core/events.ts";
 import { runWorkflow } from "../runtime/core/workflow.ts";
+import { newJwtIssuer } from "../security/jwt.ts";
 import { setFromString } from "../security/keys.ts";
 import { secondsFromNow } from "../utils.ts";
 import { Env } from "./worker.ts";
@@ -178,8 +179,16 @@ export class Workflow {
     this.execution = durableExecution(this.state.storage);
     this.router = router(buildRoutes(this));
     this.state.blockConcurrencyWhile(async () => {
+      const issuerPromise = newJwtIssuer({
+        private: env.WORKER_PRIVATE_KEY,
+        public: env.WORKER_PUBLIC_KEY,
+      });
       this.executionId = await this.execution.get().then((exec) => exec?.id);
-      const durableConnection = new WorkflowService(dbForEnv({ env }));
+
+      const durableConnection = new WorkflowService(
+        dbForEnv({ env }),
+        await issuerPromise,
+      );
 
       // After initialization, future reads do not need to access storage.
       this.handler = (allowUnconfirmed = false) => {

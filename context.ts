@@ -1,13 +1,17 @@
-import { RuntimeParameters } from "./backends/backend.ts";
+import {
+  WorkflowExecution,
+  WorkflowExecutionBase,
+} from "./backends/backend.ts";
 import { PromiseOrValue } from "./promise.ts";
 import { makeRandomWithSeed } from "./randomSeed.ts";
 import {
   AwaitableCommands,
-  Command,
   InvokeHttpEndpointCommand,
   LocalActivityCommand,
   ScheduleActivityCommand,
+  SendSignalCommand,
   SleepCommand,
+  StartExecutionCommand,
   WaitAllCommand,
   WaitAnyCommand,
   WaitForSignalCommand,
@@ -52,13 +56,30 @@ export interface Metadata {
 export class WorkflowContext<TMetadata extends Metadata = Metadata> {
   private rand: () => number;
   constructor(
-    public executionId: string,
-    public metadata?: TMetadata,
-    public runtimeParameters?: RuntimeParameters,
+    public execution: WorkflowExecution<Arg, unknown, TMetadata>,
   ) {
-    this.rand = makeRandomWithSeed(executionId);
+    this.rand = makeRandomWithSeed(execution.id);
   }
 
+  /**
+   * Start a new workflow execution
+   */
+  public startExecution(
+    exec: WorkflowExecutionBase,
+  ): StartExecutionCommand {
+    return { name: "start_execution", execution: exec };
+  }
+
+  /**
+   * Send a signal for the given workflow execution
+   */
+  public sendSignal(
+    executionId: string,
+    signal: string,
+    payload: unknown,
+  ): SendSignalCommand {
+    return { name: "send_signal", executionId, signal, payload };
+  }
   /**
    * waitForSignal wait for the given signal to be occurred.
    * @param signal the signal name
@@ -163,7 +184,7 @@ export class WorkflowContext<TMetadata extends Metadata = Metadata> {
    * Logs at least once with additional workflow information
    */
   public log(message: any, ...optionalParams: any[]): LocalActivityCommand {
-    const executionId = this.executionId;
+    const executionId = this.execution.id;
     const fn = function () {
       console.log(
         `[${new Date().toISOString()}][${executionId}]: ${message}`,

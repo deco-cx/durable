@@ -57,6 +57,26 @@ export type {
   VerifiedMessage,
 } from "../../security/identity.ts";
 export { importJWK, importJWKFromString } from "../../security/keys.ts";
+export type {
+  JwtIssuer,
+  JwtIssuerKeyPair,
+  JwtPayload,
+  JwtPayloadWithClaims,
+  JwtVerifier,
+} from "../../security/jwt.ts";
+
+export {
+  newJwtIssuer,
+  newJwtVerifier,
+  newJwtVerifierWithJWK,
+} from "../../security/jwt.ts";
+
+export type {
+  JwksIssuer,
+  JwksIssuerOptions,
+  JwksKeys,
+} from "../../security/jwks.ts";
+export { newJwksIssuer } from "../../security/jwks.ts";
 export type { Arg } from "../../types.ts";
 export { workflowRemoteRunner } from "./handler.ts";
 export type { HttpRunRequest } from "./handler.ts";

@@ -1,29 +1,35 @@
 import type { Hono } from "hono";
 import type { DB, WorkflowExecution } from "../backends/backend.ts";
 import { wellKnownJWKSHandler } from "../security/identity.ts";
+import { JwtIssuer } from "../security/jwt.ts";
 import { withAuth } from "./auth.ts";
 import { WorkflowService } from "./service.ts";
 
 export const getRouter = async (
   _app: Hono,
   db: DB,
+  jwtIssuer: JwtIssuer,
 ) => {
   const service = new WorkflowService(
     db,
+    jwtIssuer,
   );
   _app.use("/.well_known/jwks.json", wellKnownJWKSHandler);
   const app = _app.basePath("/namespaces/:namespace");
   app.use("*", withAuth());
   app.post("/executions", async ({ req: { raw: req }, get }) => {
-    const { workflow, input, metadata, id, runtimeParameters } =
-      (await req.json()) as WorkflowExecution;
+    const exec = (await req.json()) as WorkflowExecution;
 
     const canRun = get("checkIsAllowed");
-    canRun(workflow);
+    canRun(exec.workflow);
+
     return Response.json(
       await service.startExecution(
-        { workflow, executionId: id, metadata, runtimeParameters },
-        Array.isArray(input) ? input : [input],
+        {
+          ...exec,
+          namespace: get("namespace"),
+        },
+        Array.isArray(exec.input) ? exec.input : [exec.input],
       ),
     );
   });

@@ -24,7 +24,11 @@ export interface Events {
 export interface Execution {
   pending: Events;
   history: Events;
-  get(): Promise<WorkflowExecution | undefined>;
+  get<
+    TArgs extends Arg = Arg,
+    TResult = unknown,
+    TMetadata extends Metadata = Metadata,
+  >(): Promise<WorkflowExecution<TArgs, TResult, TMetadata> | undefined>;
   create(execution: WorkflowExecution): Promise<void>;
   update(execution: WorkflowExecution): Promise<void>;
   /**
@@ -81,17 +85,27 @@ export interface RuntimeParameters {
     defaultQueryParams: Record<string, string>;
   };
 }
-export interface WorkflowExecution<
+
+export interface WorkflowExecutionBase<
   TArgs extends Arg = Arg,
   TResult = unknown,
   TMetadata extends Metadata = Metadata,
 > {
-  id: string;
+  id?: string;
+  namespace?: string;
   workflow: WorkflowRuntimeRef;
   completedAt?: Date;
-  status: WorkflowStatus;
   metadata?: TMetadata;
   runtimeParameters?: RuntimeParameters;
   input?: TArgs;
   output?: TResult;
+}
+export interface WorkflowExecution<
+  TArgs extends Arg = Arg,
+  TResult = unknown,
+  TMetadata extends Metadata = Metadata,
+> extends WorkflowExecutionBase<TArgs, TResult, TMetadata> {
+  id: string;
+  namespace: string;
+  status: WorkflowStatus;
 }

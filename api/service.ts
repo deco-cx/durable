@@ -2,10 +2,12 @@ import {
   DB,
   RuntimeParameters,
   WorkflowExecution,
+  WorkflowExecutionBase,
 } from "../backends/backend.ts";
 import { Metadata } from "../context.ts";
 import { WorkflowRuntimeRef } from "../registry/registries.ts";
 import { HistoryEvent, newEvent } from "../runtime/core/events.ts";
+import { JwtIssuer } from "../security/jwt.ts";
 import { Arg } from "../types.ts";
 
 /**
@@ -16,6 +18,7 @@ export interface WorkflowCreationOptions<
 > {
   executionId?: string;
   workflow: WorkflowRuntimeRef;
+  namespace: string;
   metadata?: TMetadata;
   runtimeParameters?: RuntimeParameters;
 }
@@ -28,12 +31,12 @@ export interface Pagination<T> {
 export class WorkflowService {
   constructor(
     protected backend: DB,
+    protected jwtIssuer: JwtIssuer,
   ) {
   }
   /**
    * Cancel the workflow instance execution.
    */
-
   public cancelExecution(
     executionId: string,
     reason?: string,
@@ -113,26 +116,39 @@ export class WorkflowService {
   }
 
   /**
+   * Return a signed token used for the given audience.
+   */
+  public getSignedToken(namespace: string) {
+    const iat = Date.now();
+    return this.jwtIssuer.issue({
+      sub: "urn:deco:service::workflows",
+      aud: `urn:deco:site::${namespace}:`,
+      iat,
+      exp: iat + 600, // ten minutes duration
+    });
+  }
+
+  /**
    * Creates a new workflow based on the provided options and returns the newly created workflow execution.
    * @param options the workflow creation options
    * @param input the workflow input
    */
   public startExecution<TArgs extends Arg = Arg>(
-    { workflow, executionId, metadata, runtimeParameters }:
-      WorkflowCreationOptions,
+    _execution: WorkflowExecutionBase,
     input?: [...TArgs],
   ): Promise<WorkflowExecution> {
-    const wkflowInstanceId = executionId ?? crypto.randomUUID();
-    return this.backend.execution(wkflowInstanceId).withinTransaction(
+    const namespace = _execution.namespace;
+    if (!namespace) {
+      throw new Error("namespace param is required");
+    }
+    const execution: WorkflowExecution = {
+      id: crypto.randomUUID(),
+      status: "running",
+      namespace,
+      ..._execution,
+    };
+    return this.backend.execution(execution.id).withinTransaction(
       async (executionsDB) => {
-        const execution: WorkflowExecution = {
-          workflow,
-          id: wkflowInstanceId,
-          status: "running",
-          metadata,
-          input,
-          runtimeParameters,
-        };
         await executionsDB.create(execution); // cannot be parallelized
         await executionsDB.pending.add({
           ...newEvent(),

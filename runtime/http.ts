@@ -11,6 +11,7 @@ export const http = <
   TCtx extends WorkflowContext = WorkflowContext,
 >(
   { url }: Pick<HttpWorkflowRuntimeRef, "url">,
+  token: string,
 ): Workflow<TArgs, TResult, TCtx> => {
   return function* (
     ctx: TCtx,
@@ -27,13 +28,14 @@ export const http = <
                 method: "POST",
                 headers: {
                   "content-type": "application/json",
-                  ...(ctx.runtimeParameters?.http?.defaultHeaders ?? {}),
+                  ...(ctx.execution.runtimeParameters?.http?.defaultHeaders ??
+                    {}),
+                  "authorization": `Bearer ${token}`,
                 },
                 body: JSON.stringify({
                   input: args,
                   results: commandResults,
-                  executionId: ctx.executionId,
-                  metadata: ctx.metadata,
+                  execution: ctx.execution,
                 }),
               }).then(async (resp) => {
                 const msg: Command = await resp.json();

@@ -11,8 +11,10 @@ export const websocket = async <
   TCtx extends WorkflowContext = WorkflowContext,
 >(
   { url }: Pick<WebSocketWorkflowRuntimeRef, "url">,
+  token: string,
 ): Promise<Workflow<TArgs, TResult, TCtx>> => {
   const _url = new URL(url);
+  _url.searchParams.set("token", token);
 
   const socket = new WebSocket(_url.toString());
   const channel = await asChannel<unknown, Command>(socket);
@@ -23,8 +25,7 @@ export const websocket = async <
     if (!channel.closed.is_set()) {
       channel.send({
         input: args,
-        executionId: ctx.executionId,
-        metadata: ctx.metadata,
+        execution: ctx.execution,
       });
     }
 

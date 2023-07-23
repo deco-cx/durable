@@ -1,6 +1,6 @@
 // deno-lint-ignore-file no-explicit-any
 import { WorkflowService } from "../../api/service.ts";
-import { WorkflowExecution } from "../../backends/backend.ts";
+import { WorkflowExecutionBase } from "../../backends/backend.ts";
 import { Activity } from "../../context.ts";
 import { isAwaitable, PromiseOrValue } from "../../promise.ts";
 import { signedFetch } from "../../security/fetch.ts";
@@ -91,7 +91,7 @@ export interface WaitForSignalCommand extends CommandBase {
 
 export interface StartExecutionCommand extends CommandBase {
   name: "start_execution";
-  execution: Omit<WorkflowExecution, "id"> | WorkflowExecution;
+  execution: WorkflowExecutionBase;
 }
 
 export interface SendSignalCommand extends CommandBase {
@@ -147,17 +147,53 @@ export type Command =
   | StartExecutionCommand
   | SendSignalCommand
   | WaitForExecutionCompletionCommand
-  | CancelWorkflowCommand
   | CancelExecutionCommand
   | InvokeHttpEndpointCommand;
 
 const no_op = () => [];
 
-// TODO(mcandeia) Implement Authorization at ServiceLevel so that we can avoid managing executions without proper authentication/authorization.
-const cancel_execution = () => [];
-const send_signal = () => [];
+const cancel_execution = async (
+  { executionId, reason, isReplaying }: CancelExecutionCommand,
+  _state: WorkflowState,
+  svc: WorkflowService,
+): Promise<HistoryEvent[]> => {
+  if (isReplaying) {
+    return [];
+  }
+  await svc.cancelExecution(executionId, reason);
+  return [{
+    ...newEvent(),
+    type: "execution_canceled",
+    executionId,
+  }];
+};
+const send_signal = async (
+  { executionId, signal, payload, isReplaying }: SendSignalCommand,
+  _state: WorkflowState,
+  svc: WorkflowService,
+): Promise<HistoryEvent[]> => {
+  if (isReplaying) {
+    return [];
+  }
+  await svc.signalExecution(executionId, signal, payload);
+  return [
+    { ...newEvent(), type: "execution_signaled", executionId, signal, payload },
+  ];
+};
+// TODO(mcandeia) add execution callbacks
 const wait_execution_completion = () => [];
-const start_execution = () => [];
+const start_execution = async (
+  { execution, isReplaying }: StartExecutionCommand,
+  _state: WorkflowState,
+  svc: WorkflowService,
+): Promise<HistoryEvent[]> => {
+  if (isReplaying) {
+    return [];
+  }
+  const exc = await svc.startExecution(execution);
+
+  return [{ ...newEvent(), type: "execution_started", execution: exc }];
+};
 
 const store_local_activity_result = (
   { result, activityName, activityParams }: StoreLocalAcitivtyResult<any>,
@@ -254,11 +290,13 @@ const sleep = ({ isReplaying, until }: SleepCommand): HistoryEvent[] => {
   ];
 };
 
-const finish_workflow = ({ result, exception }: FinishWorkflowCommand): HistoryEvent[] => [
+const finish_workflow = (
+  { result, exception }: FinishWorkflowCommand,
+): HistoryEvent[] => [
   {
     ...newEvent(),
     result,
-		exception,
+    exception,
     type: "workflow_finished",
   },
 ];
