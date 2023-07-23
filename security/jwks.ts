@@ -1,5 +1,5 @@
 import { JwtPayloadWithClaims } from "./jwt.ts";
-import { importJWK, importJWKFromString } from "./keys";
+import { importJWK, importJWKFromString } from "./keys.ts";
 
 export interface JwksIssuer {
   verifyWith: <

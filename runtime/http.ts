@@ -18,39 +18,43 @@ export const http = <
   ): WorkflowGen<TResult> {
     const commandResults: unknown[] = [];
     while (true) {
-      commandResults.push(
-        yield {
-          name: "delegated",
-          getCmd: async () => {
-            return await signedFetch(url, {
-              method: "POST",
-              headers: {
-                "content-type": "application/json",
-                ...(ctx.runtimeParameters?.http?.defaultHeaders ?? {}),
-              },
-              body: JSON.stringify({
-                input: args,
-                results: commandResults,
-                executionId: ctx.executionId,
-                metadata: ctx.metadata,
-              }),
-            }).then(async (resp) => {
-              const msg: Command = await resp.json();
-              if (resp.status >= 400) {
-                throw new Error(
-                  `error when fetching new command ${resp.status} ${
-                    JSON.stringify(msg)
-                  }`,
-                );
-              }
-              return msg;
-            }).catch((err) => {
-              console.log("err", err);
-              throw err;
-            });
+      try {
+        commandResults.push(
+          yield {
+            name: "delegated",
+            getCmd: async () => {
+              return await signedFetch(url, {
+                method: "POST",
+                headers: {
+                  "content-type": "application/json",
+                  ...(ctx.runtimeParameters?.http?.defaultHeaders ?? {}),
+                },
+                body: JSON.stringify({
+                  input: args,
+                  results: commandResults,
+                  executionId: ctx.executionId,
+                  metadata: ctx.metadata,
+                }),
+              }).then(async (resp) => {
+                const msg: Command = await resp.json();
+                if (resp.status >= 400) {
+                  throw new Error(
+                    `error when fetching new command ${resp.status} ${
+                      JSON.stringify(msg)
+                    }`,
+                  );
+                }
+                return msg;
+              }).catch((err) => {
+                console.log("err", err);
+                throw err;
+              });
+            },
           },
-        },
-      );
+        );
+      } catch (error) {
+        commandResults.push({ isException: true, error });
+      }
     }
   };
 };

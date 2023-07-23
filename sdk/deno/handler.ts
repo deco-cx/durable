@@ -110,6 +110,15 @@ export const workflowRemoteRunner = <
     let cmd = genFn.next();
     while (!cmd.done) {
       const event = await commands.issue(cmd.value);
+      if ((event as { isException: true; error: any })?.isException) {
+        try {
+          cmd = genFn.throw((event as { error: any }).error);
+        } catch (e) {
+          await commands.issue({ name: "finish_workflow", exception: e });
+          return;
+        }
+        continue;
+      }
       if ((event as { isClosed: true })?.isClosed) {
         return;
       }

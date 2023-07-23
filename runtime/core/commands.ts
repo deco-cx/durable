@@ -114,7 +114,8 @@ export interface CancelExecutionCommand extends CommandBase {
 
 export interface FinishWorkflowCommand<TResult = unknown> extends CommandBase {
   name: "finish_workflow";
-  result: TResult;
+  result?: TResult;
+  exception?: unknown;
 }
 
 export interface LocalActivityCommand<
@@ -253,10 +254,11 @@ const sleep = ({ isReplaying, until }: SleepCommand): HistoryEvent[] => {
   ];
 };
 
-const finish_workflow = ({ result }: FinishWorkflowCommand): HistoryEvent[] => [
+const finish_workflow = ({ result, exception }: FinishWorkflowCommand): HistoryEvent[] => [
   {
     ...newEvent(),
     result,
+		exception,
     type: "workflow_finished",
   },
 ];

@@ -12,12 +12,24 @@ declare module "hono" {
   }
 }
 
+const matchPart = (urnPart: string, otherUrnPart: string) =>
+  urnPart === "*" || otherUrnPart === urnPart;
+const matchParts = (urn: string[], resource: string[]) => {
+  return urn.every((part, idx) => matchPart(part, resource[idx]));
+};
 const matches = (urnParts: string[]) => (resourceUrn: string) => {
   const resourceParts = resourceUrn
     .split(":");
-  return resourceParts.every((part, idx) =>
-    part === "*" || part === urnParts[idx]
-  );
+  const lastIdx = resourceParts.length - 1;
+  return resourceParts.every((part, idx) => {
+    if (part === "*") {
+      return true;
+    }
+    if (lastIdx === idx) {
+      return matchParts(part.split("/"), urnParts[idx].split("/"));
+    }
+    return part === urnParts[idx];
+  });
 };
 const trustedIssuers: string[] = [
   "urn:deco:site:*:admin:deployment/*",
@@ -35,12 +47,12 @@ const isAllowed = (ns: string, jwt: JwtPayload): boolean => {
   if (exp && new Date(exp) <= new Date()) {
     return false;
   }
-  const matchWithSite = matches(siteUrn(ns).split(":"));
-  return matchWithSite(sub);
+  const matchWithSite = matches(sub.split(":"));
+  return matchWithSite(siteUrn(ns));
 };
 
 const ADMIN_PUBLIC_KEY =
-  "eyJrdHkiOiJSU0EiLCJhbGciOiJSUzI1NiIsIm4iOiJ0ek92M3hzcGdaNFRWa0RINWZjbjI5b3JLX3Y1QVhodVh0NF9FNVJuREFzZ0xLSkxTZVFRdGwwbW1sVm1oLWlRTkhpQnYtemF1U2FEd0pGaXF1WFJOeFFrXzBiTTZEdWdEQnlaU2wwWmdxRjVkcTVfUXVsVjU4TTMxZHNQX0MxU3pyWmtzMHh4djFTMlU5b25pRmRHRTQxbTkyaWRWMDNKelNXX0xNYkVqMktlYk13UnN4d3lwYWNCdlU2Nkd2Z0l2WXl0bVk1c3l3ZlpXY1EyQk9sdFFsTWVsSzZ0UUFUOFJDR3hqcTNWVUQ1cEJUNElzdFJZTk1WWkJZYnBLc0k1WVJVRVpza3d3VWpGZGs3ZXhweElZbzl2NDIyUVdWd3Exb0NXMEtNakhfS1JXR3dzS3lJa0J3SF9PQWcxQTBNSGFFTkt4c3lHRXMta1haNGV5c0J5QWJJVDM1YWZBc29Jd0lZUTk4WUZTQktndGVsbU9iMUlkT2p4aVhkYzdWaEdBX25vNzVCYUFKUEo2RXdmbGM3N1gtOGs3aS01azJmcVNWemUtaU41SVdwY3g2ejZHdUpKNVhHWGlDeFpWbHBGclJmczdjRktTNm1jcjBUWDJSTUt0NXNEWXVscGw2ZnZaQlEwU1ZFN19NeUJVOWdibFlBVWdta3U2UzRsb2d4Nm44bmpTTm91c2l6amY4NlRaWGljejJiUDBWdHhfVEoxRW5kcEZXcFRuUjExNUJkVWZRVlNfNG9tdVFtam9nN3BaaGRGbmtQRVA4bEU2cUJ1YWpUYXBocDl6VjZFejlLOFh4SHptQWh4OGxGSFA5QjZWV3MzNkxzaUsyU0F5clU4Y0dkbGVobEROSk1UTDdIRnU1ZUd0ZkZzRXFRUVhteFo1YnRuckYwRmpVOCIsImUiOiJBUUFCIiwia2V5X29wcyI6WyJ2ZXJpZnkiXSwiZXh0Ijp0cnVlfQ==";
+  "eyJrdHkiOiJSU0EiLCJhbGciOiJSUzI1NiIsIm4iOiJ1N0Y3UklDN19Zc3ljTFhEYlBvQ1pUQnM2elZ6VjVPWkhXQ0M4akFZeFdPUnByem9WNDJDQ1JBVkVOVjJldzk1MnJOX2FTMmR3WDlmVGRvdk9zWl9jX2RVRXctdGlPN3hJLXd0YkxsanNUbUhoNFpiYXU0aUVoa0o1VGNHc2VaelhFYXNOSEhHdUo4SzY3WHluRHJSX0h4Ym9kQ2YxNFFJTmc5QnJjT3FNQmQyMUl4eUctVVhQampBTnRDTlNici1rXzFKeTZxNmtPeVJ1ZmV2Mjl0djA4Ykh5WDJQenp5Tnp3RWpjY0lROWpmSFdMN0JXX2tzdFpOOXU3TUtSLWJ4bjlSM0FKMEpZTHdXR3VnZGpNdVpBRnk0dm5BUXZzTk5Cd3p2YnFzMnZNd0dDTnF1ZE1tVmFudlNzQTJKYkE3Q0JoazI5TkRFTXRtUS1wbmo1cUlYSlEiLCJlIjoiQVFBQiIsImtleV9vcHMiOlsidmVyaWZ5Il0sImV4dCI6dHJ1ZX0=";
 const jwksIssuer = newJwksIssuer({
   fallbackPublicKey: ADMIN_PUBLIC_KEY,
   remoteAddress: "https://deco.cx/.well_known/jwks.json",

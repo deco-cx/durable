@@ -2,12 +2,9 @@ import { Event } from "../async/event.js";
 
 import { postgres } from "../backends/postgres/db.ts";
 
+import { WorkflowService } from "../api/service.ts";
 import { Queue } from "../async/queue.ts";
 import { DB } from "../backends/backend.ts";
-import {
-  buildWorkflowRegistry,
-  WorkflowRegistry,
-} from "../registry/registries.ts";
 import { runWorkflow } from "../runtime/core/workflow.ts";
 import { Arg } from "../types.ts";
 import { tryParseInt } from "../utils.ts";
@@ -69,21 +66,23 @@ async function* executionsGenerator(
 }
 
 const workflowHandler =
-  (client: DB, registry: WorkflowRegistry) =>
+  (client: DB) =>
   <TArgs extends Arg = Arg, TResult = unknown>(executionId: string) => {
     const executionDB = client.execution(executionId);
-    return runWorkflow<TArgs, TResult>(executionDB, registry);
+    return runWorkflow<TArgs, TResult>(
+      executionDB,
+      new WorkflowService(client),
+    );
   };
 
 const run = async (
   db: DB,
-  registry: WorkflowRegistry,
   { cancellation, concurrency }: HandlerOpts,
 ) => {
   const workerCount = concurrency ?? 1;
   const q = new Queue<WorkItem<string>>();
   await startWorkers(
-    workflowHandler(db, registry),
+    workflowHandler(db),
     executionsGenerator(
       db,
       () => workerCount - q.size,
@@ -94,7 +93,7 @@ const run = async (
   );
 };
 
-export const start = async (db?: DB, registry?: WorkflowRegistry) => {
+export const start = async (db?: DB) => {
   const WORKER_COUNT = tryParseInt(process.env["WORKERS_COUNT"]) ?? 10;
   const cancellation = new Event();
   process.on("SIGINT", () => {
@@ -105,7 +104,7 @@ export const start = async (db?: DB, registry?: WorkflowRegistry) => {
     cancellation.set();
   });
 
-  await run(db ?? await postgres(), registry ?? await buildWorkflowRegistry(), {
+  await run(db ?? await postgres(), {
     cancellation,
     concurrency: WORKER_COUNT,
   });
