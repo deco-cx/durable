@@ -1,4 +1,4 @@
-import { WorkflowExecution, WorkflowGen } from "../../sdk/deno/mod.ts";
+import { WorkflowGen } from "../../sdk/deno/mod.ts";
 import { Arg } from "../../types.ts";
 import { Command } from "./commands.ts";
 import { WorkflowState } from "./state.ts";
@@ -18,28 +18,6 @@ export interface Event {
 export interface NoOpEvent extends Event {
   type: "no_op";
   reason?: string;
-}
-
-export interface ExecutionCanceledEvent extends Event {
-  type: "execution_canceled";
-  executionId: string;
-}
-
-export interface ExecutionStartedEvent extends Event {
-  type: "execution_started";
-  execution: WorkflowExecution;
-}
-
-export interface ExecutionSignaledEvent extends Event {
-  type: "execution_signaled";
-  executionId: string;
-  signal: string;
-  payload: unknown;
-}
-
-export interface WaitingExecutionCompletionEvent extends Event {
-  type: "waiting_execution_completion";
-  executionId: string;
 }
 
 export type CommandResults = Partial<Record<Command["name"], HistoryEvent[]>>;
@@ -163,10 +141,6 @@ export type HistoryEvent =
   | LocalActivityCalledEvent
   | InvokeHttpResponseEvent
   | WaitingAllEvent
-  | ExecutionCanceledEvent
-  | ExecutionSignaledEvent
-  | ExecutionStartedEvent
-  | WaitingExecutionCompletionEvent
   | WaitingAnyEvent;
 
 export const newEvent = (): Omit<Event, "type"> => {
@@ -200,46 +174,6 @@ const next = <TArgs extends Arg = Arg, TResult = unknown>(
 };
 
 export const no_op = function <TArgs extends Arg = Arg, TResult = unknown>(
-  state: WorkflowState<TArgs, TResult>,
-  _: HistoryEvent,
-): WorkflowState<TArgs, TResult> {
-  return state;
-};
-
-export const execution_started = function <
-  TArgs extends Arg = Arg,
-  TResult = unknown,
->(
-  state: WorkflowState<TArgs, TResult>,
-  { execution }: ExecutionStartedEvent,
-): WorkflowState<TArgs, TResult> {
-  return next(state.generatorFn!.next(execution), state);
-};
-
-export const execution_signaled = function <
-  TArgs extends Arg = Arg,
-  TResult = unknown,
->(
-  state: WorkflowState<TArgs, TResult>,
-  _: HistoryEvent,
-): WorkflowState<TArgs, TResult> {
-  return next(state.generatorFn!.next(), state);
-};
-
-export const execution_canceled = function <
-  TArgs extends Arg = Arg,
-  TResult = unknown,
->(
-  state: WorkflowState<TArgs, TResult>,
-  _: HistoryEvent,
-): WorkflowState<TArgs, TResult> {
-  return next(state.generatorFn!.next(), state);
-};
-
-export const waiting_execution_completion = function <
-  TArgs extends Arg = Arg,
-  TResult = unknown,
->(
   state: WorkflowState<TArgs, TResult>,
   _: HistoryEvent,
 ): WorkflowState<TArgs, TResult> {
@@ -536,10 +470,6 @@ const handlers: Record<HistoryEvent["type"], EventHandler<any>> = {
   invoke_http_response,
   waiting_any,
   waiting_all,
-  waiting_execution_completion,
-  execution_canceled,
-  execution_signaled,
-  execution_started,
   no_op,
 };
 

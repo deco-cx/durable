@@ -34,6 +34,7 @@ export class WorkflowService {
     protected jwtIssuer: JwtIssuer,
   ) {
   }
+
   /**
    * Cancel the workflow instance execution.
    */

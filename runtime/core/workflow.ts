@@ -56,7 +56,6 @@ const workflowExecutionHandler = <
   TResult = unknown,
 >(
   workflow: Workflow<TArgs, TResult, WorkflowContext<Metadata>>,
-  svc: WorkflowService,
 ) =>
 async (
   executionId: string,
@@ -91,7 +90,7 @@ async (
       !state.current.isReplaying
     ) {
       try {
-        const newEvents = await handleCommand(state.current, state, svc);
+        const newEvents = await handleCommand(state.current, state);
         if (newEvents.length === 0) {
           break;
         }
@@ -160,14 +159,14 @@ export const runWorkflow = <TArgs extends Arg = Arg, TResult = unknown>(
     const workflow = maybeInstance
       ? await runtimeBuilder[maybeInstance.workflow.type](
         maybeInstance.workflow,
-        await svc.getSignedToken(maybeInstance.namespace), // TODO(mcandeia) change this
+        await svc.getSignedToken(maybeInstance.namespace),
       )
       : undefined;
 
     if (workflow === undefined) {
       throw new Error("workflow not found");
     }
-    const handler = workflowExecutionHandler<TArgs, TResult>(workflow, svc);
+    const handler = workflowExecutionHandler<TArgs, TResult>(workflow);
     return handler(maybeInstance.id, maybeInstance, executionDB);
   });
 };

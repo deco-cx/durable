@@ -4,14 +4,17 @@ import type {
   WorkflowExecution,
   WorkflowExecutionBase,
 } from "../backends/backend.ts";
+import { PromiseOrValue } from "../promise.ts";
 import type { HistoryEvent } from "../runtime/core/events.ts";
 
 export interface ClientOptions {
-  token?: string;
+  token?: string | (() => PromiseOrValue<string>);
   durableEndpoint?: string;
   namespace?: string;
+  publicKey?: string;
+  audience?: string;
 }
-let defaultOpts: ClientOptions | null = null;
+export let defaultOpts: ClientOptions | null = null;
 export const init = (opts: ClientOptions) => {
   defaultOpts = opts;
 };
@@ -57,6 +60,15 @@ function assertInitialized(
   }
 }
 
+const useToken = async (token: ClientOptions["token"]) => {
+  if (!token) {
+    return undefined;
+  }
+  if (typeof token === "string") {
+    return token;
+  }
+  return await token();
+};
 const fetchResponse = async (
   path: string,
   opts?: ClientOptions,
@@ -70,7 +82,7 @@ const fetchResponse = async (
     {
       ...init ?? {},
       headers: {
-        authorization: `Bearer ${token}`,
+        authorization: `Bearer ${await useToken(token)}`,
       },
     },
   );

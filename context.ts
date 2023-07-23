@@ -2,6 +2,7 @@ import {
   WorkflowExecution,
   WorkflowExecutionBase,
 } from "./backends/backend.ts";
+import { ClientOptions, signal, start } from "./client/init.ts";
 import { PromiseOrValue } from "./promise.ts";
 import { makeRandomWithSeed } from "./randomSeed.ts";
 import {
@@ -9,9 +10,7 @@ import {
   InvokeHttpEndpointCommand,
   LocalActivityCommand,
   ScheduleActivityCommand,
-  SendSignalCommand,
   SleepCommand,
-  StartExecutionCommand,
   WaitAllCommand,
   WaitAnyCommand,
   WaitForSignalCommand,
@@ -66,8 +65,9 @@ export class WorkflowContext<TMetadata extends Metadata = Metadata> {
    */
   public startExecution(
     exec: WorkflowExecutionBase,
-  ): StartExecutionCommand {
-    return { name: "start_execution", execution: exec };
+    opts?: ClientOptions,
+  ): LocalActivityCommand {
+    return this.callLocalActivity(() => start(exec, opts));
   }
 
   /**
@@ -75,10 +75,13 @@ export class WorkflowContext<TMetadata extends Metadata = Metadata> {
    */
   public sendSignal(
     executionId: string,
-    signal: string,
+    _signal: string,
     payload: unknown,
-  ): SendSignalCommand {
-    return { name: "send_signal", executionId, signal, payload };
+    opts?: ClientOptions,
+  ): LocalActivityCommand {
+    return this.callLocalActivity(() =>
+      signal(executionId, _signal, payload, opts)
+    );
   }
   /**
    * waitForSignal wait for the given signal to be occurred.

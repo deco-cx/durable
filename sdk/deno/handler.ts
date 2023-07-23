@@ -3,13 +3,14 @@ import type {
   ConnInfo,
   Handler,
 } from "https://deno.land/std@0.173.0/http/server.ts";
+import { defaultOpts } from "../../client/init.ts";
 import { Metadata } from "../../context.ts";
 import { verify } from "../../djwt.js";
 import { Command, runLocalActivity } from "../../runtime/core/commands.ts";
 import { Workflow } from "../../runtime/core/workflow.ts";
 import { newJwksIssuer } from "../../security/jwks.ts";
 import { Arg } from "../../types.ts";
-import type { JwtPayload } from "./mod.ts";
+import type { ClientOptions, JwtPayload } from "./mod.ts";
 import {
   asChannel,
   Channel,
@@ -33,11 +34,6 @@ const isValid = ({ exp, aud }: JwtPayload, audience?: string) => {
     : aud === audience;
 };
 
-export interface SecurityOptions {
-  durableAddr?: string;
-  publicKey?: string;
-  audience?: string;
-}
 export interface WebSocketRunRequest<
   TArgs extends Arg = Arg,
   TResult = unknown,
@@ -145,13 +141,14 @@ export const workflowRemoteRunner = <
   };
 };
 
-const initializeAuthority = (securityOpts?: SecurityOptions) => {
-  return securityOpts
+const initializeAuthority = (opts?: ClientOptions | null) => {
+  return opts
     ? newJwksIssuer({
-      remoteAddress: securityOpts.durableAddr ??
-        "https://durable-workers.deco-cx.workers.dev/.well_known/jwks.json",
+      remoteAddress: opts.durableEndpoint
+        ? `${opts.durableEndpoint}/.well_known/jwks.json`
+        : "https://durable-workers.deco-cx.workers.dev/.well_known/jwks.json",
       kid: "durable-workers-key",
-      fallbackPublicKey: securityOpts.publicKey ??
+      fallbackPublicKey: opts.publicKey ??
         "93u8uEX6gXEST9iKjA2rJ5BquUgHOBCS80EGALCIwGpnuCt6bvE2cQ19iPSvXQ4Ahq2GM1LiaLtIqk2ZLYzdheUDfB4fWUBgxTHPkRX_J84WM11z3meGP7jO8F_mnEqbzyzcjoFyagAqjW6TzVvSmcLWvmUE386coDaUcA6MFEtfsfAA5j1YTNYadvoWpeg4E-R1k0LaBmnngWv3H4AIwKjm23zcRQYJ2LrA1bI3qMMU0qyHLOJ2Ag_Ct1t6OsZmL55yojw6rej4ZFqDlAXYMW9_HHfnMbzx4_RFLHBdcqoJJnmvQraqxSxczMlA8-f4QUOc1q7sq4vzpILmQM9Nw",
     })
     : undefined;
@@ -171,9 +168,8 @@ export const workflowHTTPHandler = <
   Context: (
     execution: WorkflowExecution<TArgs, TResult, TMetadata>,
   ) => TCtx,
-  securityOpts?: SecurityOptions,
 ): Handler => {
-  const authority = initializeAuthority(securityOpts);
+  const authority = initializeAuthority(defaultOpts);
   const runner = workflowRemoteRunner(workflow, Context);
   return async function (req) {
     if (authority) {
@@ -185,7 +181,7 @@ export const workflowHTTPHandler = <
       const jwtPayload: JwtPayload = await authority.verifyWith((key) =>
         verify(token, key)
       );
-      if (!isValid(jwtPayload, securityOpts?.audience)) {
+      if (!isValid(jwtPayload, defaultOpts?.audience)) {
         return new Response(null, { status: 403 });
       }
     }
@@ -295,9 +291,8 @@ export const workflowWebSocketHandler = <
   Context: (
     execution: WorkflowExecution<TArgs, TResult, TMetadata>,
   ) => TCtx,
-  securityOpts?: SecurityOptions,
 ): Handler => {
-  const authority = initializeAuthority(securityOpts);
+  const authority = initializeAuthority(defaultOpts);
   const runner = workflowRemoteRunner<TArgs, TResult, TCtx, TMetadata>(
     workflow,
     Context,
@@ -314,7 +309,7 @@ export const workflowWebSocketHandler = <
       const jwtPayload: JwtPayload = await authority.verifyWith((key) =>
         verify(token, key)
       ); // TODO(mcandeia) validate EXP and Audience
-      if (!isValid(jwtPayload, securityOpts?.audience)) {
+      if (!isValid(jwtPayload, defaultOpts?.audience)) {
         return new Response(null, { status: 403 });
       }
     }

@@ -89,7 +89,7 @@ export {
   workflowWebSocketHandler,
 };
 
-export type { ClientOptions } from "../../client/http.ts";
+export type { ClientOptions } from "../../client/init.ts";
 
 export {
   cancel,
@@ -98,4 +98,4 @@ export {
   init,
   signal,
   start,
-} from "../../client/http.ts";
+} from "../../client/init.ts";
