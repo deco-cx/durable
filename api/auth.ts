@@ -88,11 +88,14 @@ export const withAuth = (): MiddlewareHandler<
       throw unauthorized();
     }
     const token = parts[1];
-		console.log("token", token)
 
     const payload = await jwksIssuer.verifyWith<JwtPayload>((key) =>
       verify(token, key)
-    );
+    ).catch((err) => {
+      console.log("error", err);
+      throw unauthorized();
+    });
+
     const namespace = ctx.req.param("namespace");
     ctx.set("namespace", namespace);
 

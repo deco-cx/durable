@@ -32,7 +32,7 @@ export const buildRoutes = (wkflow: Workflow): Routes => {
       "POST": async (req: Request) => {
         const body: WorkflowExecution = await req.json();
         await wkflow.execution.create(body);
-        wkflow.executionId = body.id;
+        wkflow.workflowExecution = body;
         return new Response(JSON.stringify(body), { status: 201 });
       },
     },
@@ -170,7 +170,7 @@ export class Workflow {
   execution: ReturnType<typeof durableExecution>;
   handler: (allowUnconfirmed?: boolean) => Promise<void>;
   router: Handler;
-  executionId: string | undefined;
+  workflowExecution: WorkflowExecution | undefined;
 
   constructor(state: DurableObjectState, protected env: Env) {
     setFromString(env.WORKER_PUBLIC_KEY, env.WORKER_PRIVATE_KEY);
@@ -183,8 +183,7 @@ export class Workflow {
         private: env.WORKER_PRIVATE_KEY,
         public: env.WORKER_PUBLIC_KEY,
       });
-      this.executionId = await this.execution.get().then((exec) => exec?.id);
-
+      this.workflowExecution = await this.execution.get();
       const durableConnection = new WorkflowService(
         dbForEnv({ env }),
         await issuerPromise,
@@ -226,15 +225,23 @@ export class Workflow {
     return async (err: any) => {
       const retryCount = await this.addRetries(allowUnconfirmed);
       this.env.EXECUTIONS?.writeDataPoint({
-        blobs: [(err as Error).message ?? "no_msg", "error"],
+        blobs: [
+          (err as Error).message ?? "no_msg",
+          this.workflowExecution!.workflow.url,
+          "error",
+        ],
         doubles: [retryCount],
-        indexes: [this.executionId!],
+        indexes: [
+          this.workflowExecution!.id,
+          this.workflowExecution!.namespace,
+        ],
       });
 
       if (retryCount >= MAX_RETRY_COUNT) {
         console.log(
-          `workflow ${this
-            .executionId!} has reached a maximum retry count of ${MAX_RETRY_COUNT}`,
+          `workflow ${
+            this.workflowExecution!.id
+          } has reached a maximum retry count of ${MAX_RETRY_COUNT}`,
         );
 
         await this.zeroRetries(allowUnconfirmed);
@@ -272,9 +279,16 @@ export class Workflow {
         this.zeroRetries(allowUnconfirmed),
       ]);
       this.env.EXECUTIONS?.writeDataPoint({
-        blobs: [`${isCompleted}`, "success"],
+        blobs: [
+          `${isCompleted}`,
+          this.workflowExecution!.workflow.url,
+          "success",
+        ],
         doubles: [0],
-        indexes: [this.executionId!],
+        indexes: [
+          this.workflowExecution!.id,
+          this.workflowExecution!.namespace,
+        ],
       });
       const next = pending.sort(sortHistoryEventByDate)[0];
       if (next === undefined) {
@@ -301,7 +315,7 @@ export class Workflow {
     try {
       await this.handler();
     } finally {
-      console.log(`alarm for execution ${this.executionId!}`);
+      console.log(`alarm for execution ${this.workflowExecution?.id!}`);
     }
   }
 
