@@ -4,6 +4,7 @@ import { wellKnownJWKSHandler } from "../security/identity.ts";
 import { JwtIssuer } from "../security/jwt.ts";
 import { withAuth } from "./auth.ts";
 import { WorkflowService } from "./service.ts";
+import { HTTPException } from "hono/http-exception";
 
 export const getRouter = async (
   _app: Hono,
@@ -14,6 +15,14 @@ export const getRouter = async (
     db,
     jwtIssuer,
   );
+  _app.onError((err) => {
+    console.log(err);
+    if (err instanceof HTTPException) {
+      // Get the custom response
+      return err.getResponse();
+    }
+    throw err;
+  });
   _app.use("/.well_known/jwks.json", wellKnownJWKSHandler);
   const app = _app.basePath("/namespaces/:namespace");
   app.use("*", withAuth());
