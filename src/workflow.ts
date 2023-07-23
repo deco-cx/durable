@@ -232,8 +232,7 @@ export class Workflow {
         ],
         doubles: [retryCount],
         indexes: [
-          this.workflowExecution!.id,
-          this.workflowExecution!.namespace,
+          `${this.workflowExecution!.namespace}@${this.workflowExecution!.id}`,
         ],
       });
 
@@ -286,8 +285,7 @@ export class Workflow {
         ],
         doubles: [0],
         indexes: [
-          this.workflowExecution!.id,
-          this.workflowExecution!.namespace,
+          `${this.workflowExecution!.namespace}@${this.workflowExecution!.id}`,
         ],
       });
       const next = pending.sort(sortHistoryEventByDate)[0];
