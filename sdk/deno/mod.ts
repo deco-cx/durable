@@ -10,6 +10,7 @@ export type { Pagination } from "../../api/service.ts";
 export type {
   RuntimeParameters,
   WorkflowExecution,
+  WorkflowExecutionBase,
 } from "../../backends/backend.ts";
 export type { Metadata } from "../../context.ts";
 export type {

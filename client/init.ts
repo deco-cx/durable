@@ -4,8 +4,10 @@ import type {
   WorkflowExecution,
   WorkflowExecutionBase,
 } from "../backends/backend.ts";
+import { Metadata } from "../context.ts";
 import { PromiseOrValue } from "../promise.ts";
 import type { HistoryEvent } from "../runtime/core/events.ts";
+import { Arg } from "../types.ts";
 
 export interface ClientOptions {
   token?: string | (() => PromiseOrValue<string>);
@@ -109,14 +111,22 @@ const fetchJSON = async <T>(
   return response.json<T>();
 };
 
-export const start = async (
+export const start = async <
+  TArgs extends Arg = Arg,
+  TResult = unknown,
+  TMetadata extends Metadata = Metadata,
+>(
   exec: WorkflowExecutionBase,
   opts?: ClientOptions,
-): Promise<WorkflowExecution> => {
-  return fetchJSON<WorkflowExecution>(`/executions`, opts, {
-    body: JSON.stringify(exec),
-    method: "POST",
-  });
+): Promise<WorkflowExecution<TArgs, TResult, TMetadata>> => {
+  return await fetchJSON<WorkflowExecution<TArgs, TResult, TMetadata>>(
+    `/executions`,
+    opts,
+    {
+      body: JSON.stringify(exec),
+      method: "POST",
+    },
+  );
 };
 
 export const history = async (
@@ -124,7 +134,7 @@ export const history = async (
   pagination?: PaginationParams & { stream?: boolean },
   opts?: ClientOptions,
 ): Promise<
-  Pagination<HistoryEvent[]> | AsyncIterableIterator<HistoryEvent>
+  Pagination<HistoryEvent> | AsyncIterableIterator<HistoryEvent>
 > => {
   if (pagination?.stream) {
     const response = await fetchSuccessResponse(
@@ -134,7 +144,7 @@ export const history = async (
     return readFromStream<HistoryEvent>(response);
   }
 
-  return fetchJSON<Pagination<HistoryEvent[]>>(
+  return fetchJSON<Pagination<HistoryEvent>>(
     `/executions/${id}/history?${
       pagination
         ? `page=${pagination?.page ?? 0}&pageSize=${pagination?.pageSize ?? 50}`
@@ -160,10 +170,14 @@ export const signal = async (
   );
 };
 
-export const get = async (
+export const get = async <
+  TArgs extends Arg = Arg,
+  TResult = unknown,
+  TMetadata extends Metadata = Metadata,
+>(
   id: string,
   opts?: ClientOptions,
-): Promise<WorkflowExecution | null> => {
+): Promise<WorkflowExecution<TArgs, TResult, TMetadata> | null> => {
   const response = await fetchResponse(
     `/executions/${id}`,
     opts,
@@ -174,12 +188,16 @@ export const get = async (
   if (!response.ok) {
     throw new Error(`error was thrown from durable ${response.status}`);
   }
-  return response.json<WorkflowExecution>();
+  return response.json<WorkflowExecution<TArgs, TResult, TMetadata>>();
 };
 
 export const cancel = async (
   id: string,
+  reason?: string,
   opts?: ClientOptions,
 ): Promise<void> => {
-  await fetchSuccessResponse(`/executions/${id}`, opts, { method: "DELETE" });
+  await fetchSuccessResponse(`/executions/${id}`, opts, {
+    method: "DELETE",
+    body: JSON.stringify({ reason }),
+  });
 };

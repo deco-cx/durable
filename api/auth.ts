@@ -114,7 +114,9 @@ export const withAuth = (): MiddlewareHandler<
         new URLPattern(scope)
       );
       const url = new URL(ref.url);
-      if (!scopes.some((scope) => scope.test(url))) {
+      url.search = "";
+      const atLeastOneIsAllowed = scopes.some((scope) => scope.test(url));
+      if (!atLeastOneIsAllowed) {
         const res = new Response("Forbbiden", {
           status: 403,
           headers: {
