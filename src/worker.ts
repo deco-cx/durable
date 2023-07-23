@@ -26,7 +26,7 @@ export default {
       });
       const db = dbForEnv({ env, signal: req.signal });
       const router = await getRouter(new Hono(), db, await issuer);
-      return router.fetch(req, env, ctx);
+      return await router.fetch(req, env, ctx);
     } catch (err) {
       console.log("error", err);
       throw err;
