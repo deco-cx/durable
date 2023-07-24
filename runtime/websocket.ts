@@ -42,14 +42,6 @@ export const websocket = async <
           yield {
             name: "delegated",
             getCmd: async () => {
-              if (
-                channel.closed.is_set()
-              ) {
-                throw new Error(
-                  "channel was closed before message is transmitted",
-                );
-              }
-
               let cmd: Command | boolean = await firstCommand;
               for (; index < events.length && cmd !== true; index++) {
                 const isClosed = await Promise.race([
@@ -73,7 +65,7 @@ export const websocket = async <
 
               if (typeof cmd === "boolean") {
                 throw new Error(
-                  "channel was closed before message is transmitted",
+                  "channel was closed before message is transmitted(1)",
                 );
               }
               if (cmd.name === "local_activity") { // send it back to allow to run.
@@ -83,7 +75,7 @@ export const websocket = async <
                 ]);
                 if (typeof isClosed === "boolean") {
                   throw new Error(
-                    "channel was closed before message is transmitted",
+                    "channel was closed before message is transmitted(2)",
                   );
                 }
                 cmd = await Promise.race([
@@ -93,7 +85,7 @@ export const websocket = async <
               }
               if (typeof cmd === "boolean") {
                 throw new Error(
-                  "channel was closed before message is transmitted",
+                  "channel was closed before message is transmitted(3)",
                 );
               }
 
