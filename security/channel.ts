@@ -61,7 +61,8 @@ export const asChannel = async <Send, Recv>(
   socket.addEventListener("open", () => {
     ready.set();
   });
-  socket.addEventListener("close", () => {
+  socket.addEventListener("close", (event) => {
+    console.log("closed", event);
     closed.set();
   });
   socket.addEventListener("message", (event) => {
