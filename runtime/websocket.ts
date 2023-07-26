@@ -37,9 +37,6 @@ export const websocket = async <
       channel.closed.wait(),
     ]);
     while (true) {
-      if (channel.closed.is_set()) {
-        return;
-      }
       try {
         events.push(
           yield {
