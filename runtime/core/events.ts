@@ -311,6 +311,7 @@ const workflow_finished = function <TArgs extends Arg = Arg, TResult = unknown>(
   >,
 ): WorkflowState<TArgs, TResult> {
   if (exception) {
+		// state.generatorFn!.throw(exception);
     return {
       ...state,
       hasFinished: true,

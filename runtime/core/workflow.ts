@@ -143,6 +143,7 @@ async (
       throw loopErr;
     }
   } finally {
+		console.log("disposing...")
     workflow?.dispose?.();
   }
 };
