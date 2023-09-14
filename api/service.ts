@@ -125,7 +125,7 @@ export class WorkflowService {
       sub: "urn:deco:service::workflows",
       aud: `urn:deco:site::${namespace}:`,
       iat,
-      exp: iat + 600, // ten minutes duration
+      exp: iat + 600_000, // ten minutes duration
     });
   }
 
