@@ -116,7 +116,7 @@ export const workflowRemoteRunner = <
   ) {
     const ctx = Context(execution);
 
-    const genFn = workflow(ctx, ...input);
+    const genFn = await workflow(ctx, ...input);
     let cmd = genFn.next();
     while (!cmd.done) {
       const event = await commands.issue(cmd.value);
