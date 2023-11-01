@@ -4,6 +4,7 @@ import { HistoryEvent } from "../../runtime/core/events.ts";
 import { Env } from "../../src/worker.ts";
 import { Arg } from "../../types.ts";
 import {
+  CreateOptions,
   DB,
   Events,
   Execution,
@@ -81,8 +82,23 @@ const executionFor = (
     },
     pending: eventsFor({ signal, ...rest }, "/pending", durable),
     history: eventsFor({ signal, ...rest }, "/history", durable),
-    update: useMethod("PUT"),
-    create: useMethod("POST"),
+    update: (workflow: WorkflowExecution) => {
+      return durable.fetch(withOrigin("/"), {
+        signal,
+        method: "PUT",
+        body: JSON.stringify(workflow),
+      }).then(parseOrThrow<void>());
+    },
+    create: (workflow: WorkflowExecution, createOpts?: CreateOptions) => {
+      return durable.fetch(
+        withOrigin(`/${createOpts?.restart ? "?restart" : ""}`),
+        {
+          signal,
+          method: "POST",
+          body: JSON.stringify(workflow),
+        },
+      ).then(parseOrThrow<void>());
+    },
     withinTransaction: async <T>(f: (db: Execution) => PromiseOrValue<T>) => {
       return await f(executionFor({ signal, ...rest }, durable));
     },

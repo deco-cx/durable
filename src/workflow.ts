@@ -27,11 +27,28 @@ export const buildRoutes = (wkflow: Workflow): Routes => {
   return {
     "/": {
       "GET": async (_req: Request) => {
-        return Response.json(await wkflow.execution.get());
+        const result = await wkflow.execution.get();
+        if (!result) {
+          return new Response(null, { status: 404 });
+        }
+        return Response.json(result);
       },
       "POST": async (req: Request) => {
         const body: WorkflowExecution = await req.json();
-        await wkflow.execution.create(body);
+        const shouldRestart = new URL(req.url).searchParams.has("restart");
+        const pendingAndHistory = shouldRestart
+          ? Promise.all([
+            wkflow.execution.pending.get(),
+            wkflow.execution.history.get(),
+          ])
+          : Promise.resolve([[], []]);
+        const createPromise = wkflow.execution.create(body);
+        const [pending, history] = await pendingAndHistory;
+        await Promise.all([
+          wkflow.execution.pending.del(...pending),
+          wkflow.execution.history.del(...history),
+          createPromise,
+        ]);
         wkflow.workflowExecution = body;
         return new Response(JSON.stringify(body), { status: 201 });
       },
