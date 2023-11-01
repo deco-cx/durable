@@ -38,6 +38,7 @@ export const getRouter = async (
           ...exec,
           namespace: get("namespace"),
         },
+        { restart: new URL(req.url).searchParams.has("restart") },
         Array.isArray(exec.input) ? exec.input : [exec.input],
       ),
     );

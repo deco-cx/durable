@@ -18,6 +18,9 @@ export interface Events {
   get(pagination?: PaginationParams): Promise<HistoryEvent[]>;
 }
 
+export interface CreateOptions {
+  restart?: boolean | null;
+}
 /**
  * Execution is all operations that can be executed in a given execution.
  */
@@ -29,7 +32,7 @@ export interface Execution {
     TResult = unknown,
     TMetadata extends Metadata = Metadata,
   >(): Promise<WorkflowExecution<TArgs, TResult, TMetadata> | undefined>;
-  create(execution: WorkflowExecution): Promise<void>;
+  create(execution: WorkflowExecution, options?: CreateOptions): Promise<void>;
   update(execution: WorkflowExecution): Promise<void>;
   /**
    * withintransaction executes commands inside a transaction providing the ACID guarantees

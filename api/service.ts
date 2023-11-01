@@ -10,6 +10,9 @@ import { HistoryEvent, newEvent } from "../runtime/core/events.ts";
 import { JwtIssuer } from "../security/jwt.ts";
 import { Arg } from "../types.ts";
 
+export interface StartOptions {
+  restart?: boolean | null;
+}
 /**
  * WorkflowCreationOptions is used for creating workflows of a given executionId.
  */
@@ -136,6 +139,7 @@ export class WorkflowService {
    */
   public startExecution<TArgs extends Arg = Arg>(
     _execution: WorkflowExecutionBase,
+    startOptions: StartOptions = {},
     input?: [...TArgs],
   ): Promise<WorkflowExecution> {
     const namespace = _execution.namespace;

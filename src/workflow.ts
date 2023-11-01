@@ -35,10 +35,13 @@ export const buildRoutes = (wkflow: Workflow): Routes => {
       },
       "POST": async (req: Request) => {
         const body: WorkflowExecution = await req.json();
-        const pendingAndHistory = Promise.all([
-          wkflow.execution.pending.get(),
-          wkflow.execution.history.get(),
-        ]);
+        const shouldRestart = new URL(req.url).searchParams.has("restart");
+        const pendingAndHistory = shouldRestart
+          ? Promise.all([
+            wkflow.execution.pending.get(),
+            wkflow.execution.history.get(),
+          ])
+          : Promise.resolve([[], []]);
         const createPromise = wkflow.execution.create(body);
         const [pending, history] = await pendingAndHistory;
         await Promise.all([
