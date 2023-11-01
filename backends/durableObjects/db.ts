@@ -143,7 +143,6 @@ export const durableExecution = (
         }
         return values;
       },
-      del: async () => {}, // del is not supported on history
     },
     withinTransaction: async <T>(
       f: (transactionalDb: Execution) => PromiseOrValue<T>,
