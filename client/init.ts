@@ -117,10 +117,11 @@ export const start = async <
   TMetadata extends Metadata = Metadata,
 >(
   exec: WorkflowExecutionBase,
+  restart?: boolean,
   opts?: ClientOptions,
 ): Promise<WorkflowExecution<TArgs, TResult, TMetadata>> => {
   return await fetchJSON<WorkflowExecution<TArgs, TResult, TMetadata>>(
-    `/executions`,
+    `/executions${restart ? "?restart" : ""}`,
     opts,
     {
       body: JSON.stringify(exec),
