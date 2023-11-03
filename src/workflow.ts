@@ -36,6 +36,9 @@ export const buildRoutes = (wkflow: Workflow): Routes => {
       "POST": async (req: Request) => {
         const body: WorkflowExecution = await req.json();
         const shouldRestart = new URL(req.url).searchParams.has("restart");
+        const deleteAlarmPromise = shouldRestart
+          ? wkflow.state.storage.deleteAlarm()
+          : Promise.resolve();
         const pendingAndHistory = shouldRestart
           ? Promise.all([
             wkflow.execution.pending.get(),
@@ -48,6 +51,7 @@ export const buildRoutes = (wkflow: Workflow): Routes => {
           wkflow.execution.pending.del(...pending),
           wkflow.execution.history.del(...history),
           createPromise,
+          deleteAlarmPromise,
         ]);
         wkflow.workflowExecution = body;
         return new Response(JSON.stringify(body), { status: 201 });
