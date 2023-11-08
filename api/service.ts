@@ -154,7 +154,7 @@ export class WorkflowService {
     };
     return this.backend.execution(execution.id).withinTransaction(
       async (executionsDB) => {
-        await executionsDB.create(execution); // cannot be parallelized
+        await executionsDB.create(execution, startOptions); // cannot be parallelized
         await executionsDB.pending.add({
           ...newEvent(),
           type: "workflow_started",
