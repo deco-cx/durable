@@ -47,6 +47,7 @@ export const getRouter = async (
     const { id } = req.param();
     const execution = await service.getExecution(id);
     if (execution === undefined) {
+      console.error("execution not found", id);
       return Response.json({}, { status: 403 }); // do not expose not found errors.
     }
     return Response.json(execution);
@@ -55,6 +56,7 @@ export const getRouter = async (
     const { id } = req.param();
     const execution = await service.getExecution(id);
     if (execution === undefined) {
+      console.error("execution not found", id);
       return Response.json({}, { status: 403 }); // do not expose not found errors.
     }
     await service.touchExecution(id);
@@ -75,6 +77,7 @@ export const getRouter = async (
       pageSize ? +pageSize : 10,
     );
     if (history === undefined) {
+      console.error("execution not found", id);
       return Response.json({}, { status: 403 }); // do not expose not found errors.
     }
     return Response.json(history);
