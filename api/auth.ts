@@ -102,6 +102,7 @@ export const withAuth = (): MiddlewareHandler<
     if (
       !isAllowed(namespace, payload)
     ) {
+      console.warn(`${credentials} is invalid`);
       const res = new Response("Forbbiden", {
         status: 403,
         headers: {
@@ -121,6 +122,7 @@ export const withAuth = (): MiddlewareHandler<
       url.search = "";
       const atLeastOneIsAllowed = scopes.some((scope) => scope.test(url));
       if (!atLeastOneIsAllowed) {
+        console.warn(`${credentials} scope not allowed.`);
         const res = new Response("Forbbiden", {
           status: 403,
           headers: {
