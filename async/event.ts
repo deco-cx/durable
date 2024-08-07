@@ -5,7 +5,7 @@ export class Event {
   constructor() {
     this.#waiter = deferred();
   }
-  async wait() {
+  async wait(): Promise<boolean> {
     if (this.#waiter) {
       await this.#waiter;
     }
@@ -22,7 +22,7 @@ export class Event {
       this.#waiter = deferred();
     }
   }
-  is_set() {
+  is_set(): boolean {
     return !this.#waiter;
   }
 }

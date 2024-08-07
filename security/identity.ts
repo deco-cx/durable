@@ -13,7 +13,7 @@ const getPkCrypto = async () => {
   return await pkCrypto;
 };
 
-const getPublicKey = async () => {
+const getPublicKey = async (): Promise<JsonWebKey> => {
   const [publicKey] = await getKeyPair();
   return publicKey;
 };
@@ -61,7 +61,7 @@ const parseSignatureHeader = (sig: string): Record<string, string> => {
 const keyId = "durable-workers-key";
 
 // should be /.well_known/jwks.json
-export const wellKnownJWKSHandler = async () =>
+export const wellKnownJWKSHandler: () => Promise<Response> = async (): Promise<Response> =>
   Response.json({ keys: [{ ...await getPublicKey(), kid: keyId }] });
 
 export const fetchPublicKey = async (
@@ -156,7 +156,7 @@ const stringToSHA256 = (txt: string) => {
 /**
  * Encode a given message to string.
  */
-export const stringToBase64SHA256 = async (txt: string) => {
+export const stringToBase64SHA256 = async (txt: string): Promise<string> => {
   return await stringToSHA256(txt).then((encoded) =>
     encode(new Uint8Array(encoded))
   );

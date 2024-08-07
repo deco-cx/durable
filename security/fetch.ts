@@ -11,7 +11,7 @@ export const signedFetch = async (
   input: FetchParams[0],
   init?: FetchParams[1],
   key?: PromiseOrValue<CryptoKey>,
-) => {
+): Promise<Response> => {
   const req = new Request(input, init);
   if (!req.headers.has("host")) {
     req.headers.set("host", new URL(req.url).host);

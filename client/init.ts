@@ -17,7 +17,7 @@ export interface ClientOptions {
   audience?: string;
 }
 export let defaultOpts: ClientOptions | null = null;
-export const init = (opts: ClientOptions) => {
+export const init = (opts: ClientOptions): void => {
   defaultOpts = opts;
 };
 
@@ -160,7 +160,7 @@ export const signal = async (
   event: string,
   payload: unknown,
   opts?: ClientOptions,
-) => {
+): Promise<void> => {
   await fetchSuccessResponse(
     `/executions/${id}/signals/${event}`,
     opts,
