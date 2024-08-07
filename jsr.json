@@ -1,0 +1,5 @@
+{
+    "name": "@deco/durable",
+    "version": "0.5.3",
+    "exports": "./sdk/deno/mod.ts"
+  }

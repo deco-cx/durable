@@ -1,8 +1,4 @@
 // deno-lint-ignore-file no-explicit-any
-import type {
-  ConnInfo,
-  Handler,
-} from "https://deno.land/std@0.173.0/http/server.ts";
 import { defaultOpts } from "../../client/init.ts";
 import { Metadata } from "../../context.ts";
 import { verify } from "../../djwt.js";
@@ -168,7 +164,7 @@ export const workflowHTTPHandler = <
   Context: (
     execution: WorkflowExecution<TArgs, TResult, TMetadata>,
   ) => TCtx,
-): Handler => {
+): Deno.ServeHandler => {
   const authority = initializeAuthority(defaultOpts);
   const runner = workflowRemoteRunner(workflow, Context);
   return async function (req) {
@@ -215,8 +211,8 @@ export type Workflows = Array<Workflow<any, any, any> | AliasedWorkflow>;
 export const useWorkflowRoutes = (
   { baseRoute }: CreateRouteOptions,
   workflows: Workflows,
-): Handler => {
-  const routes: Record<string, Handler> = {};
+): Deno.ServeHandler => {
+  const routes: Record<string, Deno.ServeHandler> = {};
   for (const wkflow of workflows) {
     const { alias, func } = isAlisedWorkflow(wkflow)
       ? wkflow
@@ -227,7 +223,7 @@ export const useWorkflowRoutes = (
       (execution) => new WorkflowContext(execution),
     );
   }
-  return (req: Request, conn: ConnInfo) => {
+  return (req: Request, conn: Deno.ServeHandlerInfo) => {
     const url = new URL(req.url);
     const handler = routes[url.pathname];
     if (!handler) {
@@ -291,7 +287,7 @@ export const workflowWebSocketHandler = <
   Context: (
     execution: WorkflowExecution<TArgs, TResult, TMetadata>,
   ) => TCtx,
-): Handler => {
+): Deno.ServeHandler => {
   const authority = initializeAuthority(defaultOpts);
   const runner = workflowRemoteRunner<TArgs, TResult, TCtx, TMetadata>(
     workflow,
