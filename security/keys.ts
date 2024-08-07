@@ -27,6 +27,7 @@ export const importJWK = (
   jwk: JsonWebKey,
   usages?: string[],
 ): Promise<CryptoKey> =>
+  // @ts-ignore
   crypto.subtle.importKey(
     "jwk",
     jwk,
@@ -45,19 +46,24 @@ export const importJWKFromString = (
   );
 
 const getOrGenerateKeyPair = async (): Promise<[JsonWebKey, JsonWebKey]> => {
-  const hasProcess = typeof process !== "undefined";
   // @ts-ignore
-  const publicKeyEnvValue = typeof Deno !== "undefined"
+  const isDeno = typeof Deno !== "undefined";
+  // @ts-ignore
+  const publicKeyEnvValue = isDeno
     // @ts-ignore
     ? Deno.env.get(PUBLIC_KEY_ENV_VAR)
-    : hasProcess
+    // @ts-ignore
+    : typeof process !== "undefined"
+    // @ts-ignore
     ? process.env[PUBLIC_KEY_ENV_VAR]
     : undefined;
   // @ts-ignore
-  const privateKeyEnvValue = typeof Deno !== "undefined"
+  const privateKeyEnvValue = isDeno
     // @ts-ignore
     ? Deno.env.get(PRIVATE_KEY_ENV_VAR)
-    : hasProcess
+    // @ts-ignore
+    : typeof process !== "undefined"
+    // @ts-ignore
     ? process.env[PRIVATE_KEY_ENV_VAR]
     : undefined;
   if (!publicKeyEnvValue || !privateKeyEnvValue) {

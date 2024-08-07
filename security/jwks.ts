@@ -26,7 +26,7 @@ const fetchKeyFromAddr = async (
   if (!response.ok) {
     return null;
   }
-  const { keys = [] } = await response.json<JwksKeys>();
+  const { keys = [] } = await (response.json() as Promise<JwksKeys>);
   const key = kid ? keys.find((key) => key?.kid === kid) ?? keys[0] : keys[0];
   if (!key) {
     return null;

@@ -69,7 +69,8 @@ export const asChannel = async <Send, Recv>(
     recv.push(event.data);
   });
   socket.addEventListener("error", (event) => {
-    console.log("error", JSON.stringify(event.error), event.message);
+    const evt = event as any;
+    console.log("error", JSON.stringify(evt.error), evt.message);
   });
 
   await Promise.race([ready.wait(), closed.wait()]);

@@ -108,7 +108,7 @@ const fetchJSON = async <T>(
   init?: RequestInit,
 ): Promise<T> => {
   const response = await fetchSuccessResponse(path, opts, init);
-  return response.json<T>();
+  return response.json() as Promise<T>;
 };
 
 export const start = async <
@@ -189,7 +189,7 @@ export const get = async <
   if (!response.ok) {
     throw new Error(`error was thrown from durable ${response.status}`);
   }
-  return response.json<WorkflowExecution<TArgs, TResult, TMetadata>>();
+  return response.json() as Promise<WorkflowExecution<TArgs, TResult, TMetadata>>;
 };
 
 export const cancel = async (

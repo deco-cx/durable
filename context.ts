@@ -67,7 +67,7 @@ export class WorkflowContext<TMetadata extends Metadata = Metadata> {
     exec: WorkflowExecutionBase,
     opts?: ClientOptions,
   ): LocalActivityCommand {
-    return this.callLocalActivity(() => start(exec, opts));
+    return this.callLocalActivity(() => start(exec, true, opts));
   }
 
   /**
