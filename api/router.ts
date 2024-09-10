@@ -1,12 +1,12 @@
 import type { Hono } from "hono";
+import { HTTPException } from "hono/http-exception";
 import type { DB, WorkflowExecution } from "../backends/backend.ts";
 import { wellKnownJWKSHandler } from "../security/identity.ts";
 import { JwtIssuer } from "../security/jwt.ts";
 import { withAuth } from "./auth.ts";
 import { WorkflowService } from "./service.ts";
-import { HTTPException } from "hono/http-exception";
 
-export const getRouter = async (
+export const getRouter = (
   _app: Hono,
   db: DB,
   jwtIssuer: JwtIssuer,
@@ -67,7 +67,7 @@ export const getRouter = async (
     const { id } = _req.param();
     const url = new URL(req.url);
     if (url.searchParams.has("stream")) {
-      return await service.executionHistoryStream(id, _req.signal);
+      return await service.executionHistoryStream(id, _req.raw.signal);
     }
     const page = url.searchParams.get("page");
     const pageSize = url.searchParams.get("pageSize");
@@ -85,7 +85,7 @@ export const getRouter = async (
   app.delete("/executions/:id", async (c) => {
     const req = c.req.raw;
     const { id } = c.req.param();
-    const reason = await req.json<{ reason: string }>().then((
+    const reason = await req.json().then((
       resp: { reason: string },
     ) => resp.reason);
     await service.cancelExecution(

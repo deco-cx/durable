@@ -1,5 +1,4 @@
 // deno-lint-ignore-file no-explicit-any
-import { WorkflowService } from "../../api/service.ts";
 import { Activity } from "../../context.ts";
 import { isAwaitable, PromiseOrValue } from "../../promise.ts";
 import { signedFetch } from "../../security/fetch.ts";
@@ -170,7 +169,7 @@ const wait_all = async (
   }, ...events.flatMap((e) => e)];
 };
 
-const all = async (
+const _all = async (
   { commands, isReplaying }: WaitAnyCommand,
   state: WorkflowState,
 ): Promise<HistoryEvent[]> => {

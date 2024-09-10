@@ -186,7 +186,10 @@ export class WorkflowContext<TMetadata extends Metadata = Metadata> {
   /**
    * Logs at least once with additional workflow information
    */
-  public log(message: any, ...optionalParams: any[]): LocalActivityCommand {
+  public log(
+    message: unknown,
+    ...optionalParams: unknown[]
+  ): LocalActivityCommand {
     const executionId = this.execution.id;
     const fn = function () {
       console.log(

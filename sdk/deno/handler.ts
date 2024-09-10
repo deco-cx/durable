@@ -6,7 +6,7 @@ import { Command, runLocalActivity } from "../../runtime/core/commands.ts";
 import { Workflow } from "../../runtime/core/workflow.ts";
 import { newJwksIssuer } from "../../security/jwks.ts";
 import { Arg } from "../../types.ts";
-import type { ClientOptions, JwtPayload } from "./mod.ts";
+import type { ClientOptions, JwtPayload, WorkflowGen } from "./mod.ts";
 import {
   asChannel,
   Channel,
@@ -112,13 +112,13 @@ export const workflowRemoteRunner = <
   ) {
     const ctx = Context(execution);
 
-    const genFn = await workflow(ctx, ...input);
-    let cmd = genFn.next();
+    const genFn = workflow(ctx, ...input);
+    let cmd = await genFn.next();
     while (!cmd.done) {
       const event = await commands.issue(cmd.value);
       if ((event as { isException: true; error: any })?.isException) {
         try {
-          cmd = genFn.throw((event as { error: any }).error);
+          cmd = await genFn.throw((event as { error: any }).error);
         } catch (e) {
           await commands.issue({ name: "finish_workflow", exception: e });
           return;
@@ -128,7 +128,7 @@ export const workflowRemoteRunner = <
       if ((event as { isClosed: true })?.isClosed) {
         return;
       }
-      cmd = genFn.next(event);
+      cmd = await genFn.next(event);
     }
 
     if (cmd.done) {
@@ -149,6 +149,7 @@ const initializeAuthority = (opts?: ClientOptions | null) => {
     })
     : undefined;
 };
+
 /**
  * Exposes a workflow function as a http handler.
  * @param workflow the workflow function
@@ -321,3 +322,32 @@ export const workflowWebSocketHandler = <
     return response;
   };
 };
+
+export type CmdMessage<TResp> = { cmd: Command } | { error: Error } | {
+  response: TResp;
+};
+export interface CommandChannel<TResp = unknown> {
+  recv: () => Promise<CmdMessage<TResp>>;
+  send: (result: unknown) => void;
+  closed: AbortSignal;
+}
+
+/**
+ * Transforms an async/await function into a WorkflowGen generator function.
+ */
+export async function* toWorkflowGen<TResp>(
+  commandChannel: CommandChannel<TResp>,
+): WorkflowGen<TResp> {
+  while (!commandChannel.closed.aborted) {
+    // Execute the function, and if it completes without throwing, return the response.
+    const response = await commandChannel.recv();
+    if ("cmd" in response) {
+      const result = yield response.cmd;
+      commandChannel.send(result);
+      continue;
+    } else if ("error" in response) {
+      throw response;
+    }
+    return response.response;
+  }
+}

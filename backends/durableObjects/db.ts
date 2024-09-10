@@ -1,3 +1,4 @@
+// deno-lint-ignore-file no-explicit-any
 import { PromiseOrValue } from "../../promise.ts";
 import { HistoryEvent } from "../../runtime/core/events.ts";
 import {
@@ -28,6 +29,7 @@ export interface CollectionStorage<T extends readonly Identifiable[]> {
 }
 export const useSingleton = <T>(
   key: string,
+  // @ts-expect-error: cloudflare-provided types
   durable: DurableObjectTransaction | DurableObjectStorage,
   { allowUnconfirmed }: GateOptions = { allowUnconfirmed: false },
 ): SingletonStorage<T> => {
@@ -39,6 +41,7 @@ export const useSingleton = <T>(
 
 export const useCollection = <T extends readonly Identifiable[]>(
   prefix: string,
+  // @ts-expect-error: cloudflare-provided types
   durable: DurableObjectTransaction | DurableObjectStorage,
   { allowUnconfirmed }: GateOptions = { allowUnconfirmed: false },
 ): CollectionStorage<T> => {
@@ -94,6 +97,7 @@ export const sortHistoryEventByDate = (
 };
 
 export const durableExecution = (
+  // @ts-ignore: cloudflare-provided types
   db: DurableObjectTransaction | DurableObjectStorage,
   gateOpts: GateOptions = { allowUnconfirmed: false },
 ) => {
@@ -156,12 +160,16 @@ export const durableExecution = (
 };
 
 const isDurableObjStorage = (
+  // @ts-expect-error: cloudflare-provided types
   db: DurableObjectTransaction | DurableObjectStorage,
+  // @ts-expect-error: cloudflare-provided types
 ): db is DurableObjectStorage => {
+  // @ts-expect-error: cloudflare-provided types
   return typeof (db as DurableObjectStorage)?.transaction === "function";
 };
 
 export const dbFor = (
+  // @ts-expect-error: cloudflare-provided types
   db: DurableObjectTransaction | DurableObjectStorage,
 ): DB => {
   return {

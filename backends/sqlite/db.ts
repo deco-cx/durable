@@ -1,3 +1,4 @@
+// deno-lint-ignore-file no-explicit-any
 import { HistoryEvent } from "../../runtime/core/events.ts";
 import {
   DB,
@@ -14,17 +15,19 @@ import {
   queryHistory,
   toHistoryEvent,
 } from "../postgres/events.ts";
-import { queryPendingEvents } from "./events.ts";
 import {
   getExecution,
   insertExecution,
   unlockExecution,
   updateExecution,
 } from "../postgres/executions.ts";
+import { queryPendingEvents } from "./events.ts";
 import { pendingExecutionsSQLite } from "./executions.ts";
 
-import schema from "./schema.ts";
 import { DB as DBSqlite } from "https://deno.land/x/sqlite@v3.7.2/mod.ts";
+import { Metadata } from "../../context.ts";
+import { Arg } from "../../types.ts";
+import schema from "./schema.ts";
 
 const processJSON = (row: Record<string, any>) => {
   const processRowAndColumn = (row: Record<string, any>, column: string) => {
@@ -85,15 +88,21 @@ const executionsFor = () => (executionId: string): Execution => {
       "history",
       queryHistory(executionId),
     ),
-    get: () => {
+    get: <
+      TArgs extends Arg = Arg,
+      TResult = unknown,
+      TMetadata extends Metadata = Metadata,
+    >() => {
       const row = db.queryEntries(getExecution(executionId))?.[0];
       if (!row) {
         return Promise.resolve(undefined);
       }
       processJSON(row);
-      const result = row as unknown as WorkflowExecution & {
-        completedat: Date;
-      };
+      const result = row as unknown as
+        & WorkflowExecution<TArgs, TResult, TMetadata>
+        & {
+          completedat: Date;
+        };
       const { completedat: _ignore, ...rest } = {
         ...result,
 
