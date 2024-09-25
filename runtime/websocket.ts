@@ -40,7 +40,7 @@ export const websocket = async <
       try {
         events.push(
           yield {
-            name: "delegated",
+            name: "delegated" as const,
             getCmd: async () => {
               let cmd: Command | boolean = await firstCommand;
               for (; index < events.length && cmd !== true; index++) {

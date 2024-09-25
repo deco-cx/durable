@@ -1,8 +1,8 @@
-import { WorkflowGen } from "../../sdk/deno/mod.ts";
+// deno-lint-ignore-file no-explicit-any
 import { Arg } from "../../types.ts";
 import { Command } from "./commands.ts";
 import { WorkflowState } from "./state.ts";
-import { isNoArgFn } from "./workflow.ts";
+import { AsyncWorkflowGen, isNoArgFn, WorkflowGen } from "./workflow.ts";
 
 /**
  * Event is the base event
@@ -154,7 +154,7 @@ export const newEvent = (): Omit<Event, "type"> => {
 type EventHandler<TEvent extends HistoryEvent = HistoryEvent> = (
   state: WorkflowState,
   event: TEvent,
-) => WorkflowState;
+) => Promise<WorkflowState> | WorkflowState;
 
 const next = <TArgs extends Arg = Arg, TResult = unknown>(
   {
@@ -225,18 +225,18 @@ export const waiting_signal = function <
   };
 };
 
-export const signal_received = function <
+export const signal_received = async function <
   TArgs extends Arg = Arg,
   TResult = unknown,
 >(
   state: WorkflowState<TArgs, TResult>,
   { signal, payload }: SignalReceivedEvent,
-): WorkflowState<TArgs, TResult> {
+): Promise<WorkflowState<TArgs, TResult>> {
   const signalFn = state.signals[signal];
   if (signalFn === undefined) {
     return state;
   }
-  return next(signalFn.next(payload), {
+  return next(await signalFn.next(payload), {
     ...state,
     status: "running",
     signals: { [signal]: undefined },
@@ -255,15 +255,15 @@ const timer_scheduled = function <TArgs extends Arg = Arg, TResult = unknown>(
   };
 };
 
-const timer_fired = function <TArgs extends Arg = Arg, TResult = unknown>(
+const timer_fired = async function <TArgs extends Arg = Arg, TResult = unknown>(
   state: WorkflowState<TArgs, TResult>,
   { timerId }: TimerFiredEvent,
-): WorkflowState<TArgs, TResult> {
+): Promise<WorkflowState<TArgs, TResult>> {
   const timerFn = state.timers[timerId];
   if (timerFn === undefined) {
     return state;
   }
-  return next(timerFn.next(), {
+  return next(await timerFn.next(), {
     ...state,
     status: "running",
     timers: { [timerId]: undefined },
@@ -280,18 +280,18 @@ const workflow_canceled = function <
   return { ...state, canceledAt, status: "canceled" };
 };
 
-const activity_completed = function <
+const activity_completed = async function <
   TArgs extends Arg = Arg,
   TResult = unknown,
 >(
   state: WorkflowState<TArgs, TResult>,
   { exception, result }: ActivityCompletedEvent<TResult>,
-): WorkflowState<TArgs, TResult> {
+): Promise<WorkflowState<TArgs, TResult>> {
   try {
     const genResult = exception
       ? state.generatorFn!.throw(exception)
       : state.generatorFn!.next(result);
-    return next(genResult, state);
+    return next(await genResult, state);
   } catch (err) {
     return { ...state, exception: err, hasFinished: true };
   }
@@ -311,7 +311,7 @@ const workflow_finished = function <TArgs extends Arg = Arg, TResult = unknown>(
   >,
 ): WorkflowState<TArgs, TResult> {
   if (exception) {
-		// state.generatorFn!.throw(exception);
+    // state.generatorFn!.throw(exception);
     return {
       ...state,
       hasFinished: true,
@@ -330,10 +330,13 @@ const workflow_finished = function <TArgs extends Arg = Arg, TResult = unknown>(
   };
 };
 
-const workflow_started = function <TArgs extends Arg = Arg, TResult = unknown>(
+const workflow_started = async function <
+  TArgs extends Arg = Arg,
+  TResult = unknown,
+>(
   state: WorkflowState<TArgs, TResult>,
   { input, timestamp }: WorkflowStartedEvent<TArgs>,
-): WorkflowState<TArgs, TResult> {
+): Promise<WorkflowState<TArgs, TResult>> {
   const workflowFn = state.workflowFn;
   const generatorFn = input
     ? workflowFn(...input)
@@ -344,7 +347,7 @@ const workflow_started = function <TArgs extends Arg = Arg, TResult = unknown>(
   if (generatorFn === undefined) {
     throw new Error("input not provided for genfn func");
   }
-  const nextCmd = generatorFn.next();
+  const nextCmd = await generatorFn.next();
 
   return next(nextCmd, {
     ...state,
@@ -354,31 +357,30 @@ const workflow_started = function <TArgs extends Arg = Arg, TResult = unknown>(
   });
 };
 
-const local_activity_called = function <
+const local_activity_called = async function <
   TArgs extends Arg = Arg,
   TResult = unknown,
 >(
   state: WorkflowState<TArgs, TResult>,
-  // deno-lint-ignore no-explicit-any
   { result }: LocalActivityCalledEvent<any>,
-): WorkflowState<TArgs, TResult> {
-  return next(state.generatorFn!.next(result), state);
+): Promise<WorkflowState<TArgs, TResult>> {
+  return next(await state.generatorFn!.next(result), state);
 };
 
-const invoke_http_response = function <
+const invoke_http_response = async function <
   TArgs extends Arg = Arg,
   TResult = unknown,
 >(
   state: WorkflowState<TArgs, TResult>,
   { body, headers, status, responseFormat, timestamp }: InvokeHttpResponseEvent,
-): WorkflowState<TArgs, TResult> {
+): Promise<WorkflowState<TArgs, TResult>> {
   try {
     const genResult = status >= 400
-      ? state.generatorFn!.throw({
+      ? await state.generatorFn!.throw({
         message: "Error when fetching API",
         response: { body, headers, status },
       })
-      : state.generatorFn!.next(
+      : await state.generatorFn!.next(
         responseFormat && responseFormat === "complete"
           ? { body, headers, status }
           : body,
@@ -396,7 +398,7 @@ const invoke_http_response = function <
 };
 
 class Barrier<TArgs extends Arg = Arg, TResult = unknown>
-  implements WorkflowGen<TResult> {
+  implements AsyncWorkflowGen<TResult> {
   results: Array<any>;
   canBreak = false;
   constructor(
@@ -416,30 +418,33 @@ class Barrier<TArgs extends Arg = Arg, TResult = unknown>
     return { ...state, signals: {}, timers: {}, generatorFn: this.genFn };
   }
 
-  next(...args: [] | [any]): IteratorResult<Command, TResult | undefined> {
+  async next(
+    ...args: [] | [any]
+  ): Promise<IteratorResult<Command, TResult | undefined>> {
     this.results.push(...args);
     if ((this.results.length >= this.size) || this.first) {
       this.canBreak = true;
       if (this.first) {
-        return this.genFn.next(this.results[0]);
+        return await this.genFn.next(this.results[0]);
       }
-      return this.genFn.next(this.results);
+      return await this.genFn.next(this.results);
     }
     return {
       done: false,
       value: { name: "no_op" },
     };
   }
-  return(
+  async return(
     value: TResult | undefined,
-  ): IteratorResult<Command, TResult | undefined> {
-    return this.genFn.return(value);
+  ): Promise<IteratorResult<Command, TResult | undefined>> {
+    return await this.genFn.return(value);
   }
-  throw(e: any): IteratorResult<Command, TResult | undefined> {
-    return this.genFn.throw(e);
+  async throw(e: any): Promise<IteratorResult<Command, TResult | undefined>> {
+    return await this.genFn.throw(e);
   }
-  [Symbol.iterator](): Generator<Command, TResult | undefined, any> {
-    return this.genFn[Symbol.iterator]();
+  [Symbol.asyncIterator](): AsyncGenerator<Command, TResult | undefined, any> {
+    return (this.genFn as AsyncGenerator<Command, TResult | undefined, any>)
+      [Symbol.asyncIterator]();
   }
 }
 const isBarrier = <TArgs extends Arg = Arg, TResult = unknown>(
@@ -456,7 +461,6 @@ const withBarrierOf = <TArgs extends Arg = Arg, TResult = unknown>(
   return new Barrier<TArgs, TResult>(size, genFn, first);
 };
 
-// deno-lint-ignore no-explicit-any
 const handlers: Record<HistoryEvent["type"], EventHandler<any>> = {
   workflow_canceled,
   activity_completed,
@@ -477,9 +481,9 @@ const handlers: Record<HistoryEvent["type"], EventHandler<any>> = {
 export function apply<TArgs extends Arg = Arg, TResult = unknown>(
   workflowState: WorkflowState<TArgs, TResult>,
   event: HistoryEvent,
-): WorkflowState<TArgs, TResult> {
+): Promise<WorkflowState<TArgs, TResult>> {
   return handlers[event.type](
     workflowState as WorkflowState,
     event,
-  ) as WorkflowState<TArgs, TResult>;
+  ) as Promise<WorkflowState<TArgs, TResult>>;
 }

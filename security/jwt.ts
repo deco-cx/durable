@@ -2,6 +2,7 @@ import { create, decode, verify } from "../djwt.js";
 import { importJWK, importJWKFromString } from "./keys.ts";
 
 export interface JwtPayload {
+  // deno-lint-ignore no-explicit-any
   [key: string]: any;
   iss?: string | undefined;
   sub?: string | undefined;

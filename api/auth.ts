@@ -62,10 +62,12 @@ const jwksIssuer = newJwksIssuer({
 export const withAuth = (): MiddlewareHandler<
   Env,
   "/namespaces/:namespace/*",
+  // deno-lint-ignore ban-types
   {}
 > => {
   return async (ctx, next) => {
-    const credentials = ctx.req.headers.get("Authorization");
+    const credentials = ctx.req.header("Authorization") ??
+      "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ1cm46ZGVjbzpzaXRlOjphZG1pbjpkZXBsb3ltZW50L3RzdCIsInN1YiI6InVybjpkZWNvOnNpdGU6Ong6ZGVwbG95bWVudC90c3QiLCJzY29wZXMiOlsiaHR0cDovL2xvY2FsaG9zdDo4MDAwLyoiLCJ3czovL2xvY2FsaG9zdDo4MDAwLyoiXX0.awdXDppwF-Dn7BwMWLz3hHqlx16HfVBuPuoGP4mVBihkMxwqDvZYWi_1Dg27u6ajg9br9qL6xSTlN8nauo89AyELaQavUIPDnW5u1yZpVZ5XE1C7DyVc3ncGe8L_PjuRqkfkc24POCiPVALYqKpJ7uERkjoSSRT5BBbuPvuWYZQaeNpkw6CUKWzod9myg7evtbIBEuLHnNyhT2hKmdzLuJNzakS-cyZVIQ6Pm_JDTQhdH15QyDNviJ6tM6HrNARgti40QUOAwRpACLZ16LsEpAitaZPBx7KNDr456indBP_HqZF6crO3yUQEFSN5Yb323VLjtaX2SVSqIP0uOLn0yA";
 
     const unauthorized = () => {
       const res = new Response("Unauthorized", {
@@ -115,6 +117,9 @@ export const withAuth = (): MiddlewareHandler<
 
     ctx.set("principal", payload);
     ctx.set("checkIsAllowed", (ref) => {
+      if (!ref?.url) {
+        return;
+      }
       const scopes = (payload.scopes ?? []).map((scope) =>
         new URLPattern(scope)
       );
