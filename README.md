@@ -15,5 +15,3 @@ In summary, Durable workflows offer a simple and reliable way to implement workf
 ### Workflows made easy
 
 Workflows are functions that generates `Commands`, a workflow may have an input or not.
-
-TODO
