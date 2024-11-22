@@ -133,7 +133,9 @@ export const buildRoutes = (wkflow: Workflow): Routes => {
             } finally {
               try {
                 await writer.close();
-              } catch {}
+              } catch (_err) {
+                // ignore
+              }
             }
           })();
           return new Response(readable, {
@@ -243,7 +245,7 @@ export class Workflow {
     await this.state.storage.put("retries", 0, { allowUnconfirmed });
   }
   onHandleError(allowUnconfirmed = false) {
-    return async (err: any) => {
+    return async (err: unknown) => {
       const retryCount = await this.addRetries(allowUnconfirmed);
       this.env.EXECUTIONS?.writeDataPoint({
         blobs: [
@@ -275,9 +277,12 @@ export class Workflow {
       try {
         console.error(
           `handle error retry count ${retryCount}, trying in ${inSeconds} seconds`,
+          err,
           JSON.stringify(err),
         );
-      } catch {}
+      } catch (_err) {
+        // ignore
+      }
       await this.state.storage.setAlarm(secondsFromNow(inSeconds), {
         allowUnconfirmed,
       });

@@ -1,4 +1,4 @@
-import { Event } from "../async/event.js";
+import { Event } from "../async/event.ts";
 
 import { postgres } from "../backends/postgres/db.ts";
 
@@ -94,12 +94,14 @@ const run = async (
 };
 
 export const start = async (db?: DB) => {
+  // @ts-expect-error: node-process
   const WORKER_COUNT = tryParseInt(process.env["WORKERS_COUNT"]) ?? 10;
   const cancellation = new Event();
+  // @ts-expect-error: node-process
   process.on("SIGINT", () => {
     cancellation.set();
   });
-
+  // @ts-expect-error: node-process
   process.on("SIGTERM", () => {
     cancellation.set();
   });
@@ -109,5 +111,6 @@ export const start = async (db?: DB) => {
     concurrency: WORKER_COUNT,
   });
   await cancellation.wait();
+  // @ts-expect-error: node-process
   process.exit(0);
 };

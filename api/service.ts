@@ -34,7 +34,7 @@ export interface Pagination<T> {
 export class WorkflowService {
   constructor(
     protected backend: DB,
-    protected jwtIssuer: JwtIssuer,
+    protected jwtIssuer?: JwtIssuer,
   ) {
   }
 
@@ -124,7 +124,7 @@ export class WorkflowService {
    */
   public getSignedToken(namespace: string) {
     const iat = Date.now();
-    return this.jwtIssuer.issue({
+    return this.jwtIssuer!.issue({
       sub: "urn:deco:service::workflows",
       aud: `urn:deco:site::${namespace}:`,
       iat,

@@ -11,14 +11,26 @@ import { WorkflowState, zeroState } from "../../runtime/core/state.ts";
 import { runtimeBuilder } from "../builders.ts";
 
 /**
- * WorkflowGen is the generator function returned by a workflow function.
+ * SyncWorkflow is the generator function returned by a workflow function.
  */
-export type WorkflowGen<TResp extends unknown = unknown> = Generator<
+export type SyncWorkflowGen<TResp extends unknown = unknown> = Generator<
   Command,
   TResp | undefined,
   // deno-lint-ignore no-explicit-any
   any
 >;
+
+export type AsyncWorkflowGen<TResp extends unknown = unknown> = // deno-lint-ignore no-explicit-any
+  AsyncGenerator<Command, TResp | undefined, any>;
+
+/**
+ * WorkflowGen is the generator function returned by a workflow function.
+ */
+export type WorkflowGen<TResp extends unknown = unknown> =
+  | SyncWorkflowGen<
+    TResp
+  >
+  | AsyncWorkflowGen<TResp>;
 
 /**
  * WorkflowGenFn is a function that returns a workflow generator function.
@@ -39,6 +51,17 @@ export const isNoArgFn = function <TArgs extends Arg = Arg, TResp = unknown>(
   return fn.length == 0;
 };
 
+export type AsyncWorkflow<
+  TArgs extends Arg = Arg,
+  TResp = unknown,
+  TCtx extends WorkflowContext = WorkflowContext,
+> = {
+  dispose?: () => void;
+  (
+    ctx: TCtx,
+    ...args: [...TArgs]
+  ): Promise<TResp>;
+};
 export type Workflow<
   TArgs extends Arg = Arg,
   TResp = unknown,
@@ -77,13 +100,18 @@ async (
       return workflow(ctx, ...args);
     };
 
-    let state: WorkflowState<TArgs, TResult> = [
-      ...history,
-      ...pendingEvents,
-    ].reduce(apply, zeroState(workflowFn));
+    let state: WorkflowState<TArgs, TResult> = zeroState(workflowFn);
+    for (
+      const event of [
+        ...history,
+        ...pendingEvents,
+      ]
+    ) {
+      state = await apply(state, event);
+    }
 
     const asPendingEvents: HistoryEvent[] = [];
-    let loopErr: null | any = null;
+    let loopErr: null | unknown = null;
     while (
       state.canceledAt === undefined &&
       !state.hasFinished &&
@@ -96,7 +124,7 @@ async (
         }
         for (const newEvent of newEvents) {
           if (newEvent.visibleAt === undefined) {
-            state = apply(state, newEvent);
+            state = await apply(state, newEvent);
             pendingEvents.push(newEvent);
             if (
               state.canceledAt === undefined &&
@@ -143,7 +171,7 @@ async (
       throw loopErr;
     }
   } finally {
-		console.log("disposing...")
+    console.log("disposing...");
     workflow?.dispose?.();
   }
 };

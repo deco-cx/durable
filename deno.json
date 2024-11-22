@@ -1,0 +1,6 @@
+{
+    "tasks": {
+        "start": "npm start",
+        "sample": "deno run -A samples/main.ts"
+    }
+}

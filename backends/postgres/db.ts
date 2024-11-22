@@ -1,5 +1,7 @@
 import { PoolClient, QueryResult, QueryResultRow } from "pg";
+import { Metadata } from "../../context.ts";
 import { HistoryEvent } from "../../runtime/core/events.ts";
+import { Arg } from "../../types.ts";
 import { apply } from "../../utils.ts";
 import {
   DB,
@@ -89,7 +91,11 @@ const executionsFor =
         "history",
         queryHistory(executionId),
       ),
-      get: () =>
+      get: <
+        TArgs extends Arg = Arg,
+        TResult = unknown,
+        TMetadata extends Metadata = Metadata,
+      >() =>
         useClient(
           queryObject<WorkflowExecution>(getExecution(executionId)),
         ).then(({ rows }) => {
@@ -97,7 +103,9 @@ const executionsFor =
             return undefined;
           }
           // camel case is not working when selecting from db.
-          const result = rows[0] as WorkflowExecution & { completedat: Date };
+          const result = rows[0] as
+            & WorkflowExecution<TArgs, TResult, TMetadata>
+            & { completedat: Date };
           const { completedat: _ignore, ...rest } = {
             ...result,
             completedAt: result?.completedat,
@@ -140,7 +148,7 @@ function dbFor(useClient: UseClient): DB {
       return useClient(
         queryObject<{ id: string }>(pendingExecutions(lockTimeoutMS, limit)),
       ).then(({ rows }) =>
-        rows.map(({ id: execution }) => ({
+        rows.map(({ id: execution }: { id: string }) => ({
           execution,
           unlock: unlockWkflowExecution(execution),
         }))

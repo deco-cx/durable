@@ -69,7 +69,7 @@ export const asChannel = async <Send, Recv>(
     recv.push(event.data);
   });
   socket.addEventListener("error", (event) => {
-    const evt = event as any;
+    const evt = event as unknown as { error: unknown; message: string };
     console.log("error", JSON.stringify(evt.error), evt.message);
   });
 

@@ -41,7 +41,7 @@ export const newJwksIssuer = (
   return {
     verifyWith: async (cb) => {
       currentKey ??= fetchKeyFromAddr(remoteAddress, kid);
-      const key = await currentKey.then(async (c) => {
+      const key = await currentKey.then((c) => {
         if (c === null && fallbackPublicKey) {
           fallbackKey ??= importJWKFromString(fallbackPublicKey, ["verify"]);
           return fallbackKey;

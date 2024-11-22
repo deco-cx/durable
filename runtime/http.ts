@@ -22,7 +22,7 @@ export const http = <
       try {
         commandResults.push(
           yield {
-            name: "delegated",
+            name: "delegated" as const,
             getCmd: async () => {
               return await signedFetch(url, {
                 method: "POST",

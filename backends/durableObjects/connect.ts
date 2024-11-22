@@ -24,6 +24,7 @@ const parseOrThrow = <T>() => async (resp: Response) => {
 const eventsFor = (
   { signal }: DBContext,
   route: "/history" | "/pending",
+  // @ts-expect-error: cloudflare-provided types
   durable: DurableObjectStub,
 ): Events => {
   return {
@@ -61,15 +62,9 @@ const eventsFor = (
 
 const executionFor = (
   { signal, ...rest }: DBContext,
+  // @ts-expect-error: cloudflare-provided types
   durable: DurableObjectStub,
 ): Execution => {
-  const useMethod = (method: string) => (workflow: WorkflowExecution) => {
-    return durable.fetch(withOrigin("/"), {
-      signal,
-      method,
-      body: JSON.stringify(workflow),
-    }).then(parseOrThrow<void>());
-  };
   return {
     get: <
       TArgs extends Arg = Arg,

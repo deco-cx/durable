@@ -29,6 +29,7 @@ export default function* orders(
   ctx: WorkflowContext<{ parentWorkflowId: string }>,
   { skuIds }: OrderForm,
 ) {
+  yield ctx.log(`Starting order for ${skuIds}`);
   const skus: Sku[] = [];
   let total = 0;
   for (const skuId of skuIds) {
