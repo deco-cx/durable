@@ -15,7 +15,7 @@
 	},
 	"dependencies": {
 		"esm": "^3.2.25",
-		"hono": "^3.3.0",
+		"hono": "^4.13.11",
 		"jsonwebtoken": "^9.0.1",
 		"p-limit": "^4.0.0",
 		"pg": "^8.11.1"
